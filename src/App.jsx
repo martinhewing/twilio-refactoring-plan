@@ -1,5 +1,3 @@
-You're right, sorry. Here's just the Module 00 data block to replace in the file:
-
 ```js
   {
     id: "00",
