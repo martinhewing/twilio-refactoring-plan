@@ -110,5 +110,3 @@
     ],
   },
 ```
-
-Replace the entire existing Module 00 object (from the opening `{` to its closing `},`) with this. The empty `00-B` section is gone.
