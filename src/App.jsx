@@ -1,806 +1,1409 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
-// ─── DATA ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// DATA — All worksheet content structured for rendering
+// ═══════════════════════════════════════════════════════════════════
 
-const MODULES = [
-  {
-    id: "00",
-    title: "Module 00",
-    subtitle: "Environment Setup",
-    color: "#f59e0b",
-    weeks: "Gate 1",
-    description: "Get the full stack running locally. The gate is simple: debugger halts on a breakpoint inside whatsapp_webhook() and curl returns 200. Do not proceed to Module 01 until both are true.",
-    sections: [
-      {
-        id: "00-A",
-        title: "Environment Setup",
-        description: "Every step is a hard prerequisite for the next. Do not skip.",
-        tasks: [
-          {
-            id: "00-A-1",
-            label: "Clone the repository",
-            subtasks: [
-              { id: "00-A-1a", label: "git clone git@github.com:martinhewing/twilio.git" },
-              { id: "00-A-1b", label: "cd twilio" },
-              { id: "00-A-1c", label: "git log --oneline -10 — read the recent commit history" },
-            ],
-          },
-          {
-            id: "00-A-2",
-            label: "Create and activate virtual environment",
-            subtasks: [
-              { id: "00-A-2a", label: "python3 -m venv .venv" },
-              { id: "00-A-2b", label: "source .venv/bin/activate  (Windows: .venv\\Scripts\\activate)" },
-              { id: "00-A-2c", label: "Confirm terminal prompt shows (.venv)" },
-            ],
-          },
-          {
-            id: "00-A-3",
-            label: "Install dependencies",
-            subtasks: [
-              { id: "00-A-3a", label: "pip install -r requirements.txt" },
-              { id: "00-A-3b", label: "pip install pytest pytest-asyncio httpx" },
-              { id: "00-A-3c", label: "python -c 'import fastapi, redis, twilio, anthropic' — must import clean with no errors" },
-            ],
-          },
-          {
-            id: "00-A-4",
-            label: "Configure environment variables",
-            subtasks: [
-              { id: "00-A-4a", label: "cp .env.example .env" },
-              { id: "00-A-4b", label: "Populate TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER" },
-              { id: "00-A-4c", label: "Populate ANTHROPIC_API_KEY" },
-              { id: "00-A-4d", label: "Populate REDIS_URL (local: redis://localhost:6379)" },
-              { id: "00-A-4e", label: "Confirm .env is listed in .gitignore" },
-              { id: "00-A-4f", label: "SECURITY GATE: git log --all -S 'TWILIO_AUTH_TOKEN' | wc -l — must return 0. If not, rotate credentials now." },
-            ],
-          },
-          {
-            id: "00-A-5",
-            label: "Confirm Redis is running",
-            subtasks: [
-              { id: "00-A-5a", label: "redis-cli ping — must return PONG" },
-              { id: "00-A-5b", label: "If not: brew services start redis (macOS) or sudo systemctl start redis (Linux)" },
-            ],
-          },
-          {
-            id: "00-A-6",
-            label: "Run the FastAPI server",
-            subtasks: [
-              { id: "00-A-6a", label: "Confirm .venv is active — prompt shows (.venv)" },
-              { id: "00-A-6b", label: "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload" },
-              { id: "00-A-6c", label: "Confirm 'Uvicorn running on http://0.0.0.0:8000' in terminal" },
-              { id: "00-A-6d", label: "curl http://localhost:8000/health — must return 200" },
-              { id: "00-A-6e", label: "Open http://localhost:8000/docs — Swagger UI must load" },
-            ],
-          },
-          {
-            id: "00-A-7",
-            label: "Configure PyCharm debugger",
-            subtasks: [
-              { id: "00-A-7a", label: "which uvicorn — must return .venv/bin/uvicorn, not /usr/local/bin/uvicorn" },
-              { id: "00-A-7b", label: "Run -> Edit Configurations -> + -> Python" },
-              { id: "00-A-7c", label: "Script path: the .venv/bin/uvicorn path from above" },
-              { id: "00-A-7d", label: "Parameters: app.main:app --host 0.0.0.0 --port 8000" },
-              { id: "00-A-7e", label: "Working directory: project root" },
-              { id: "00-A-7f", label: "Environment variables: copy all entries from .env" },
-              { id: "00-A-7g", label: "Click Debug (bug icon) — confirm server starts in PyCharm console" },
-              { id: "00-A-7h", label: "Open app/main.py — set a breakpoint on the first line inside whatsapp_webhook()" },
-              { id: "00-A-7i", label: "Confirm breakpoint dot is solid red (hollow = file not on interpreter path)" },
-            ],
-          },
-          {
-            id: "00-A-8",
-            label: "Configure ngrok and Twilio webhook",
-            subtasks: [
-              { id: "00-A-8a", label: "Open a second terminal: ngrok http 8000" },
-              { id: "00-A-8b", label: "Copy the https://xxxxx.ngrok.io forwarding URL" },
-              { id: "00-A-8c", label: "Twilio Console -> Messaging -> Senders -> WhatsApp -> your sandbox number" },
-              { id: "00-A-8d", label: "Set webhook URL to https://xxxxx.ngrok.io/whatsapp-webhook, method POST, save" },
-            ],
-          },
-          {
-            id: "00-A-9",
-            label: "Verify the full pipeline — GATE",
-            subtasks: [
-              { id: "00-A-9a", label: "Send 'hello' from your personal WhatsApp to the Twilio sandbox number" },
-              { id: "00-A-9b", label: "Confirm ngrok terminal shows POST /whatsapp-webhook 200" },
-              { id: "00-A-9c", label: "Confirm PyCharm debugger halts on the breakpoint inside whatsapp_webhook()" },
-              { id: "00-A-9d", label: "GATE PASSED. Both conditions met. Proceed to Module 01." },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "01",
-    title: "Module 01",
-    subtitle: "Discovery, Debugging & Characterization Tests",
-    color: "#3b82f6",
-    weeks: "Gate 2",
-    description: "Observe before asserting. Classify before refactoring. Every observation in Section B must be recorded before writing a single test in Section C.",
-    sections: [
-      {
-        id: "01-A",
-        title: "Section A — Code Discovery & Classification",
-        description: "Read the source. Classify every violation using guide taxonomy. Do not modify any code.",
-        tasks: [
-          {
-            id: "01-A-1",
-            label: "Mandatory pre-reading",
-            subtasks: [
-              { id: "01-A-1a", label: "Read docs/diagrams/redis-contamination.md in full" },
-              { id: "01-A-1b", label: "Read all files in docs/fix-records/" },
-              { id: "01-A-1c", label: "Read app/main.py from line 1 to EOF without skipping" },
-              { id: "01-A-1d", label: "Read app/fsm.py in full -- map every State enum value and every VALID_TRANSITION entry" },
-              { id: "01-A-1e", label: "Read app/exceptions.py -- note handle_whatsapp_errors and InvalidStateError" },
-              { id: "01-A-1f", label: "Read app/redis_helper.py -- count how many StrictRedis instantiations exist" },
-              { id: "01-A-1g", label: "Read app/turbo_diesel_ai.py -- count how many StrictRedis instantiations exist" },
-            ],
-          },
-          {
-            id: "01-A-2",
-            label: "Q1 — Classify whatsapp_webhook() (CAT-6 Orchestration)",
-            subtasks: [
-              { id: "01-A-2a", label: "Write one sentence: what does this function do? (no jargon)" },
-              { id: "01-A-2b", label: "Identify Concern 1: session retrieval (PRT-2 violation -- no repository)" },
-              { id: "01-A-2c", label: "Identify Concern 2: FSM state transition (PAT-8 -- should be in FSM layer only)" },
-              { id: "01-A-2d", label: "Identify Concern 3: AI processing (AIService -- should be behind Protocol)" },
-              { id: "01-A-2e", label: "Identify Concern 4: Twilio message dispatch (MessageService -- should be behind Protocol)" },
-              { id: "01-A-2f", label: "Label the function as CAT-6. Confirm all four concerns are present." },
-              { id: "01-A-2g", label: "Debugger step: set breakpoint at first line of whatsapp_webhook(). Step Over (F8) through each concern. Note which lines belong to each." },
-            ],
-          },
-          {
-            id: "01-A-3",
-            label: "Q2 — Map inputs and outputs (SOLID-SRP violation)",
-            subtasks: [
-              { id: "01-A-3a", label: "List all inputs: Form field from Twilio (Body, From, To, ...)" },
-              { id: "01-A-3b", label: "List all outputs: Redis session write, Twilio message send, HTTP PlainTextResponse" },
-              { id: "01-A-3c", label: "Count the outputs. More than one output = more than one responsibility = SRP violation." },
-              { id: "01-A-3d", label: "Debugger step: Evaluate Expression (Ctrl+Alt+F8) on request.form() at the breakpoint. Record every key." },
-              { id: "01-A-3e", label: "Note which form keys are used and which are discarded. Discarded keys are tech debt candidates." },
-            ],
-          },
-          {
-            id: "01-A-4",
-            label: "Q3 — Trace a new customer journey (CAT-4 Factory check)",
-            subtasks: [
-              { id: "01-A-4a", label: "Starting from whatsapp_webhook(), list every function called in order for a brand new customer sending 'sales inquiries'" },
-              { id: "01-A-4b", label: "At initialize_user_session(): is this a CAT-4 Factory? Does it create-and-return without side effects?" },
-              { id: "01-A-4c", label: "If initialize_user_session() writes to Redis -- it is NOT a factory. Note the violation." },
-              { id: "01-A-4d", label: "Debugger step: set breakpoint inside initialize_user_session(). Step Through. Watch Variables panel. Does Redis get written?" },
-              { id: "01-A-4e", label: "Record the full call stack from whatsapp_webhook() to first Twilio send." },
-            ],
-          },
-          {
-            id: "01-A-5",
-            label: "Q4 — Document the session object shape (OOP-ENCAP violation)",
-            subtasks: [
-              { id: "01-A-5a", label: "After a new sales inquiry, paste live list(session_data.keys()) from the debugger" },
-              { id: "01-A-5b", label: "Document: from_number, menu, current_reference_id, reference_ids, inquiry_in_progress, team_type, ai_enabled" },
-              { id: "01-A-5c", label: "Document fsm_state sub-dict: state, history, function_calls, context" },
-              { id: "01-A-5d", label: "Document interactions sub-dict: messages, system_logs, requested_quotes, timestamp, team_type, status" },
-              { id: "01-A-5e", label: "Document conversation_list sub-dict: head, tail, current" },
-              { id: "01-A-5f", label: "grep -n 'session\\[' app/main.py | wc -l -- count all raw dict writes. Each one is an encapsulation violation." },
-              { id: "01-A-5g", label: "This dict becomes the entity domain model in Phase 2. The full documented shape is the specification." },
-            ],
-          },
-        ],
-      },
-      {
-        id: "01-B",
-        title: "Section B — Bug Hunt & Live Observation",
-        description: "Read docs/diagrams/redis-contamination.md first. Then use the debugger to observe each bug live. Record observations BEFORE writing any test.",
-        tasks: [
-          {
-            id: "01-B-0",
-            label: "Debugger environment confirmed (prerequisite)",
-            subtasks: [
-              { id: "01-B-0a", label: "PyCharm debug config is running (from Module 00 Part A)" },
-              { id: "01-B-0b", label: "ngrok is forwarding to localhost:8000" },
-              { id: "01-B-0c", label: "Twilio sandbox is configured to the ngrok URL" },
-              { id: "01-B-0d", label: "redis-cli monitor running in a separate terminal (shows all Redis commands live)" },
-            ],
-          },
-          {
-            id: "01-B-1",
-            label: "Bug 1 — CONC-3: sync Redis inside async handler",
-            subtasks: [
-              { id: "01-B-1a", label: "grep -n 'StrictRedis\\|redis.Redis' app/main.py app/redis_helper.py app/turbo_diesel_ai.py -- count all instances" },
-              { id: "01-B-1b", label: "Confirm every instance is synchronous (redis.StrictRedis, not redis.asyncio.Redis)" },
-              { id: "01-B-1c", label: "Write in your own words: what does a synchronous Redis call do to an async FastAPI handler?" },
-              { id: "01-B-1d", label: "Debugger step: set breakpoint on a Redis get() call inside async whatsapp_webhook(). Check Evaluate Expression: inspect.iscoroutinefunction(redis_client.get)" },
-              { id: "01-B-1e", label: "Confirm False -- this is the CONC-3 bug. Every request serialises the event loop." },
-              { id: "01-B-1f", label: "Write: what is the customer-visible symptom under 10 concurrent users?" },
-              { id: "01-B-1g", label: "SOLID label: DIP violation -- bound to redis.StrictRedis concrete, not a Protocol" },
-            ],
-          },
-          {
-            id: "01-B-2",
-            label: "Bug 2 — Three-client Redis problem (PRT-2 violation)",
-            subtasks: [
-              { id: "01-B-2a", label: "Locate redis client instantiations: app/main.py, app/redis_helper.py, app/turbo_diesel_ai.py" },
-              { id: "01-B-2b", label: "Confirm all three target the same keyspace (same REDIS_URL)" },
-              { id: "01-B-2c", label: "Write: what happens if main.py writes session['state'] and turbo_diesel_ai.py reads it 10ms later with no transaction context?" },
-              { id: "01-B-2d", label: "Write: which client wins if save_and_debug_user_session() and session_repo.save_session() both write simultaneously?" },
-              { id: "01-B-2e", label: "Debugger step: set breakpoints in both save functions. Send two rapid WhatsApp messages. Observe which fires last." },
-              { id: "01-B-2f", label: "SOLID label: SRP violation at module level -- each file owns a connection it should not have" },
-            ],
-          },
-          {
-            id: "01-B-3",
-            label: "Bug 3 — .keys() O(N) scan (performance pathology)",
-            subtasks: [
-              { id: "01-B-3a", label: "grep -n '\\.keys(' app/main.py app/redis_helper.py -- count occurrences" },
-              { id: "01-B-3b", label: "redis-cli monitor: watch for KEYS * command when a webhook fires" },
-              { id: "01-B-3c", label: "Write: what does redis.keys('whatsapp:*') do to a live Redis instance with 50,000 session keys?" },
-              { id: "01-B-3d", label: "Debugger step: Evaluate Expression: import time; t=time.time(); redis_client.keys('whatsapp:*'); time.time()-t -- record the time" },
-              { id: "01-B-3e", label: "Write: what is the correct replacement? (redis SCAN with cursor iteration)" },
-              { id: "01-B-3f", label: "Severity: Critical. Blocks ALL Redis operations while scanning." },
-            ],
-          },
-          {
-            id: "01-B-4",
-            label: "Bug 4 — Regex NoneType crash (DT-EXC-1 violation)",
-            subtasks: [
-              { id: "01-B-4a", label: "Locate: re.search(r'yes, to (\\w+)', lower).group(1) in main.py" },
-              { id: "01-B-4b", label: "Write: what happens when re.search returns None and .group(1) is called?" },
-              { id: "01-B-4c", label: "Write: which customer message would trigger this? (hint: a transfer confirmation that doesn't match the pattern)" },
-              { id: "01-B-4d", label: "Debugger step: use Set Value in Variables panel to set lower to 'yes please' (no department name). Step Over. Observe." },
-              { id: "01-B-4e", label: "Write: what does the customer receive when this crashes? (check handle_whatsapp_errors decorator)" },
-              { id: "01-B-4f", label: "Fix pattern (do not implement yet): re.search(...) result = match.group(1) if match else None -- then guard against None" },
-            ],
-          },
-          {
-            id: "01-B-5",
-            label: "Bug 5 — State.ERROR tuple (silent customer stranding)",
-            subtasks: [
-              { id: "01-B-5a", label: "Locate State.ERROR in app/fsm.py -- is it a tuple or a scalar?" },
-              { id: "01-B-5b", label: "Check VALID_TRANSITIONS -- is State.ERROR listed as a valid source state for any transition?" },
-              { id: "01-B-5c", label: "Write: if a customer lands in State.ERROR, can they ever exit without a session reset?" },
-              { id: "01-B-5d", label: "Debugger step: use Set Value to set fsm.state = State.ERROR. Attempt a transition. Observe InvalidStateError." },
-              { id: "01-B-5e", label: "Write: how many customers in production are potentially stuck in this state right now?" },
-              { id: "01-B-5f", label: "Write: what is the recovery path today? (manual Redis key deletion?)" },
-            ],
-          },
-          {
-            id: "01-B-6",
-            label: "Bug 6 — TwiML in WhatsApp responses (protocol mismatch)",
-            subtasks: [
-              { id: "01-B-6a", label: "grep -n 'text/xml\\|MessagingResponse\\|twiml' app/main.py | head -20" },
-              { id: "01-B-6b", label: "Write: what does Twilio's WhatsApp channel do when it receives a TwiML XML response?" },
-              { id: "01-B-6c", label: "Write: what is the correct response for WhatsApp webhooks? (PlainTextResponse('', 200) + client.messages.create())" },
-              { id: "01-B-6d", label: "Identify every route that returns TwiML when it should return PlainTextResponse" },
-              { id: "01-B-6e", label: "Note: this bug causes silent message failures -- Twilio logs show 200 but the customer gets nothing" },
-            ],
-          },
-          {
-            id: "01-B-7",
-            label: "Observation record (complete before Section C)",
-            subtasks: [
-              { id: "01-B-7a", label: "Bug 1 observed live: YES / NO" },
-              { id: "01-B-7b", label: "Bug 2 observed live: YES / NO" },
-              { id: "01-B-7c", label: "Bug 3 .keys() timing recorded: ___ms" },
-              { id: "01-B-7d", label: "Bug 4 crash reproduced via Set Value: YES / NO" },
-              { id: "01-B-7e", label: "Bug 5 stuck state confirmed: YES / NO" },
-              { id: "01-B-7f", label: "Bug 6 TwiML routes identified: ___ routes" },
-              { id: "01-B-7g", label: "Checkpoint: ALL rows above must be filled before writing a single test in Section C." },
-            ],
-          },
-        ],
-      },
-      {
-        id: "01-C",
-        title: "Section C — Characterization Tests",
-        description: "Write tests that pin current behaviour. These tests survive the refactor because they assert what the system does, not how it is wired.",
-        tasks: [
-          {
-            id: "01-C-0",
-            label: "Test infrastructure setup",
-            subtasks: [
-              { id: "01-C-0a", label: "mkdir -p tests/unit tests/integration tests/functional" },
-              { id: "01-C-0b", label: "Create tests/conftest.py with fixtures: clean_redis, mock_twilio, mock_claude" },
-              { id: "01-C-0c", label: "clean_redis: scope=function, flush the test keyspace before each test" },
-              { id: "01-C-0d", label: "mock_twilio: monkeypatch twilio.rest.Client.messages.create to return a fake SID" },
-              { id: "01-C-0e", label: "mock_claude: monkeypatch anthropic.Anthropic to return a fake completion" },
-              { id: "01-C-0f", label: "Create FastAPI TestClient: from fastapi.testclient import TestClient; client = TestClient(app)" },
-              { id: "01-C-0g", label: "pytest tests/ -x -- all zero tests must PASS before writing any" },
-            ],
-          },
-          {
-            id: "01-C-1",
-            label: "Level 1 — Pure function unit tests (no HTTP, no Redis, no Twilio)",
-            subtasks: [
-              { id: "01-C-1a", label: "normalize_whitespace(): None -> '', empty -> '', tabs -> single space, multiple spaces -> single space" },
-              { id: "01-C-1b", label: "is_button_press(): known button strings -> True, unknown text -> False, case variants" },
-              { id: "01-C-1c", label: "extract_part_numbers(): valid part patterns -> list, noise input -> [], mixed input -> only valid parts" },
-              { id: "01-C-1d", label: "extract_part_qty_pairs_customer(): all 5 supported formats + edge cases (no qty, zero qty, large qty)" },
-              { id: "01-C-1e", label: "map_country_code_to_currency(): UK -> GBP, US -> USD, Canada -> CAD, EU -> EUR, unknown -> None or default" },
-              { id: "01-C-1f", label: "generate_departmental_reference_id(): sales -> 'sal_', admin -> 'adm_', logistics -> 'log_' prefix confirmed" },
-              { id: "01-C-1g", label: "extract_department_transfer(): 'yes, to sales' -> 'sales', no match -> None, case variants" },
-              { id: "01-C-1h", label: "format_conversation(): with messages -> formatted string, with quotes -> quotes included, empty interaction -> empty string" },
-              { id: "01-C-1i", label: "format_all_customer_messages(): single interaction, multiple interactions, empty session dict" },
-              { id: "01-C-1j", label: "All Level 1 tests use scope=function fixtures. No mock.assert_called_with anywhere." },
-              { id: "01-C-1k", label: "pytest tests/unit/ -v -- all pass" },
-            ],
-          },
-          {
-            id: "01-C-2",
-            label: "Level 2 — FSM integration tests (no HTTP, no Redis, no Twilio)",
-            subtasks: [
-              { id: "01-C-2a", label: "Full sales happy path: IDLE -> MAIN_MENU -> SALES_MENU -> SALES_INQUIRY -> WAITING_RESPONSE -> INQUIRY_COMPLETE" },
-              { id: "01-C-2b", label: "Each transition: assert fsm.state == expected_state after transition call" },
-              { id: "01-C-2c", label: "to_dict() / from_dict() round-trip: WhatsAppFSM -> dict -> WhatsAppFSM, assert state preserved" },
-              { id: "01-C-2d", label: "log_function_call() capped at 5 entries: add 6, assert len(fsm.function_calls) == 5" },
-              { id: "01-C-2e", label: "populate_context_from_session(): assert all expected context keys present after call" },
-              { id: "01-C-2f", label: "simulate_sales_flow(): run full simulation, assert terminal state reached" },
-              { id: "01-C-2g", label: "simulate_admin_flow(): run full simulation, assert terminal state reached" },
-              { id: "01-C-2h", label: "simulate_logistics_flow(): run full simulation, assert terminal state reached" },
-              { id: "01-C-2i", label: "State.ERROR test: transition to ERROR state, attempt recovery transition, assert InvalidStateError raised" },
-              { id: "01-C-2j", label: "pytest tests/integration/ -v -- all pass" },
-            ],
-          },
-          {
-            id: "01-C-3",
-            label: "Level 3 — Webhook characterization tests (full stack, mocked externals)",
-            subtasks: [
-              { id: "01-C-3a", label: "Scenario 1 — New customer: POST /whatsapp-webhook with new number -> response 200, Redis key created, main menu text sent" },
-              { id: "01-C-3b", label: "Assert: redis_client.exists('whatsapp:+447700000000') == 1 after request" },
-              { id: "01-C-3c", label: "Assert: session['fsm_state']['state'] == 'MAIN_MENU' after request" },
-              { id: "01-C-3d", label: "Scenario 2 — Sales button press: existing session in MAIN_MENU, POST 'sales' -> state transitions to SALES_MENU" },
-              { id: "01-C-3e", label: "Assert: session['menu'] == 'sales' after request" },
-              { id: "01-C-3f", label: "Scenario 3 — Part number inquiry: session in SALES_INQUIRY, POST with part number -> AI called, state -> WAITING_RESPONSE" },
-              { id: "01-C-3g", label: "Assert: mock_claude called once (use mock.called, not mock.assert_called_with)" },
-              { id: "01-C-3h", label: "Scenario 4 — Unknown input: session in MAIN_MENU, POST 'xyzzy' -> 200 response, state unchanged, help text sent" },
-              { id: "01-C-3i", label: "Assert: response.status_code == 200 (server does not 500 on unknown input)" },
-              { id: "01-C-3j", label: "Scenario 5 — Department transfer: session in SALES_INQUIRY, POST 'yes, to logistics' -> state TRANSFER_INITIATED" },
-              { id: "01-C-3k", label: "Scenario 6 — Regex NoneType (Bug 4): session in SALES_INQUIRY, POST 'yes please' (no department) -> 200, no crash" },
-              { id: "01-C-3l", label: "Mark Bug 4 test as @pytest.mark.xfail(reason='Bug 4: regex NoneType crash not yet fixed') if it crashes" },
-              { id: "01-C-3m", label: "Scenario 7 — Returning customer: second POST with same number -> existing session loaded from Redis, not reinitialised" },
-              { id: "01-C-3n", label: "Assert: session['reference_ids'] has length 0 still (no new inquiry created on second message)" },
-              { id: "01-C-3o", label: "Scenario 8 — TwiML bug (Bug 6): assert response.headers['content-type'] is NOT 'text/xml' for WhatsApp routes" },
-              { id: "01-C-3p", label: "Mark Bug 6 test as @pytest.mark.xfail if content-type is text/xml (documents the bug)" },
-              { id: "01-C-3q", label: "Scenario 9 — State persistence: POST -> Redis session -> second POST reads same session state" },
-              { id: "01-C-3r", label: "pytest tests/functional/ -v -- all pass (xfail is still a pass)" },
-            ],
-          },
-          {
-            id: "01-C-4",
-            label: "Module 01 completion gate",
-            subtasks: [
-              { id: "01-C-4a", label: "pytest tests/ -v -- full suite passes with 0 errors (xfail counts as pass)" },
-              { id: "01-C-4b", label: "pytest tests/ --co -q | wc -l -- at least 40 test items collected" },
-              { id: "01-C-4c", label: "git add tests/ && git commit -m 'feat: Module 01 characterization test suite'" },
-              { id: "01-C-4d", label: "Comprehension gate: state the CAT-x for every method you touched" },
-              { id: "01-C-4e", label: "Comprehension gate: explain why every xfail test is marked xfail rather than deleted" },
-              { id: "01-C-4f", label: "Comprehension gate: explain what would break in Module 02 if you had used assert_called_with" },
-              { id: "01-C-4g", label: "GATE PASSED: you may proceed to Module 02 (Phase 1 security + Phase 2 repository layer)" },
-            ],
-          },
-        ],
-      },
-    ],
-  },
+const CAT_DEFS = {
+  "CAT-1": { label: "Query", color: "#61afef", desc: "Returns data, no side effects" },
+  "CAT-2": { label: "Mutation", color: "#c678dd", desc: "Changes internal state, returns nothing" },
+  "CAT-3": { label: "Command", color: "#e06c75", desc: "Triggers external IO" },
+  "CAT-4": { label: "Factory", color: "#98c379", desc: "Creates and returns a new object" },
+  "CAT-5": { label: "Validation", color: "#e5c07b", desc: "Raises on bad input, no return value" },
+  "CAT-6": { label: "Orchestration", color: "#56b6c2", desc: "Coordinates multiple CAT-x operations" },
+  "CAT-8": { label: "Computation", color: "#d19a66", desc: "Pure calculation, no IO, no state" },
+};
+
+const SOLID_DEFS = {
+  "SOLID-SRP": "Class has more than one reason to change",
+  "SOLID-DIP": "Depends on concrete, not abstraction",
+  "OOP-ENCAP": "Internal state exposed to callers",
+  "CONC-3": "Synchronous call inside async handler",
+  "PRT-2": "No Protocol at an IO boundary",
+};
+
+const TEMPLATES = {
+  "A.1": "Pure function, no fixtures",
+  "B.1.1": "Factory, verify no side effects",
+  "B.1.4": "State mutation, before/after assertion",
+  "B.1.9": "Orchestration, real Redis, monkeypatched IO",
+};
+
+const SECTIONS = [
+  { id: "orientation", label: "Orientation", icon: "◈" },
+  { id: "pre-prompt", label: "DT-METHOD-1", icon: "◆" },
+  { id: "setup", label: "Setup", icon: ">" },
+  { id: "q1", label: "Q1 · webhook()", icon: "①" },
+  { id: "q2", label: "Q2 · Redis Client", icon: "②" },
+  { id: "q3", label: "Q3 · .keys() Scan", icon: "③" },
+  { id: "q4", label: "Q4 · Decorator", icon: "④" },
+  { id: "q5", label: "Q5 · State.ERROR", icon: "⑤" },
+  { id: "q6", label: "Q6 · Observations", icon: "⑥" },
+  { id: "q7", label: "Q7 · Prod Failure", icon: "⑦" },
+  { id: "failure-matrix", label: "Failure Matrix", icon: "!" },
+  { id: "tests-l1", label: "Tests · L1 Pure", icon: "▸" },
+  { id: "tests-l2", label: "Tests · L2 FSM", icon: "▸" },
+  { id: "tests-l3", label: "Tests · L3 Webhook", icon: "▸" },
+  { id: "checklist", label: "Completion", icon: "✓" },
 ];
 
-// ─── STORAGE ────────────────────────────────────────────────────────────────
+const FAILURE_SCENARIOS = [
+  { scenario: "Redis goes down mid-conversation", fix: "EXC-7 Fallback", corrupt: "?", recoverable: "?" },
+  { scenario: "Twilio retries same webhook", fix: "DEC-ERR-8 Idempotency", corrupt: "Possibly — FSM may double-transition", recoverable: "No" },
+  { scenario: "Claude API times out in process_with_ai()", fix: "EXC-6 Retry with Backoff", corrupt: "?", recoverable: "?" },
+  { scenario: "Two messages from same customer simultaneously", fix: "CONC-5 Lock", corrupt: "?", recoverable: "?" },
+  { scenario: "State.ERROR tuple bug hits from_dict()", fix: "BUG Fix immediately", corrupt: "Yes — FSM stuck", recoverable: "No" },
+  { scenario: ".keys() called with 50k keys in Redis", fix: "CONC-3 + scan_iter", corrupt: "No", recoverable: "Yes, eventually" },
+  { scenario: "format_all_customer_messages() defined twice", fix: "SOLID-SRP Extract", corrupt: "No", recoverable: "Yes" },
+  { scenario: "TEMP_IMAGE_FOLDER hardcoded to /Users/martinhewing/...", fix: "CFG-1 Config injection", corrupt: "No", recoverable: "No — immediate crash" },
+];
 
-const STORAGE_KEY = "twilio-module-plan-00-01-v1";
+const PURE_FUNCTIONS = [
+  { fn: "generate_departmental_reference_id", cat: "CAT-4", template: "B.1.1", edges: "sal_, adm_, log_ prefixes; two calls differ; missing team_type fallback" },
+  { fn: "map_country_code_to_currency", cat: "CAT-1", template: "A.1", edges: "+44→GBP, +1→USD, +49→EUR, whatsapp: prefix stripped, unknown→USD" },
+  { fn: "extract_part_qty_pairs", cat: "CAT-8", template: "A.1", edges: '"3 x 452-0427", "2x1234-56", "no parts", "" — assert tuple contents' },
+  { fn: "extract_department_transfer", cat: "CAT-8", template: "A.1", edges: '"speak to sales team", "transfer to admin", "logistics", "no transfer"' },
+  { fn: "is_button_press", cat: "CAT-1", template: "A.1", edges: "every string in ALL_BUTTONS; one that is not; case sensitivity" },
+  { fn: "normalize_whitespace", cat: "CAT-8", template: "A.1", edges: "tabs, multiple spaces, leading/trailing, None" },
+];
 
-const storage = {
-  get: (key) => {
-    try {
-      const v = localStorage.getItem(key);
-      return v ? { value: v } : null;
-    } catch { return null; }
-  },
-  set: (key, val) => {
-    try { localStorage.setItem(key, val); return true; } catch { return null; }
-  },
-  delete: (key) => {
-    try { localStorage.removeItem(key); return true; } catch { return null; }
-  },
+const FSM_TESTS = [
+  { test: "MAIN_MENU → SALES_INQUIRIES", template: "B.1.4", assertion: "state before=MAIN_MENU, after=SALES_INQUIRIES, history+1", label: "PAT-8" },
+  { test: "MAIN_MENU → ADMIN_SUPPORT", template: "B.1.4", assertion: "same pattern", label: "PAT-8" },
+  { test: "MAIN_MENU → TRACK_ORDER", template: "B.1.4", assertion: "same pattern", label: "PAT-8" },
+  { test: "SALES → NEW_SALES_INQUIRY", template: "B.1.4", assertion: "state change + history from/to values", label: "PAT-8" },
+  { test: "Invalid transition raises", template: "A.1", assertion: "transition_to(QUOTE_SENT) from MAIN_MENU raises ValueError", label: "CAT-5" },
+  { test: "State.ERROR tuple bug documented", template: "A.1", assertion: 'assert State.ERROR.value == ("Error",) — IS the bug', label: "BUG" },
+  { test: "to_dict() / from_dict() round-trip", template: "B.1.4+B.1.1", assertion: "all fields preserved", label: "OOP-ENCAP" },
+  { test: 'from_dict() with "state":"Error"', template: "A.1", assertion: "raises ValueError — characterization", label: "BUG" },
+  { test: "Full sales happy path", template: "B.1.9", assertion: "MAIN→SALES→NEW→AI_PROC→AI_DONE", label: "PAT-8" },
+];
+
+const WEBHOOK_SCENARIOS = [
+  { scenario: "First message from unknown", seed: "None", input: "Body=hello", assertions: "HTTP 200; Redis key created; state=='Main Menu'; mock_twilio called once" },
+  { scenario: "salesid1 button", seed: "menu=main", input: "Body=salesid1", assertions: "HTTP 200; state=='Sales Inquiries'; sales submenu dispatched" },
+  { scenario: "new_inquiry button", seed: "menu=sales", input: "Body=new_inquiry", assertions: "HTTP 200; state=='New Sales Inquiry'; reference_id starts sal_" },
+  { scenario: "Parts inquiry + mock_claude", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200/202; AI template dispatched; requested_quotes non-empty" },
+  { scenario: "Unknown button payload", seed: "menu=main", input: "Body=notabutton", assertions: "HTTP 200; no crash; state unchanged" },
+  { scenario: "all my messages special command", seed: "any", input: "Body=all my messages", assertions: "HTTP 200; handled before menu routing; cooldown key set" },
+  { scenario: "process_with_ai raises", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200 (not 500); state not left as AI_PROCESSING" },
+  { scenario: "SM003 re-sent (Twilio retry)", seed: "menu=sales", input: "identical SM003", assertions: "HTTP 200; reference_id unchanged; no second interaction node" },
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// MODEL ANSWERS — FAANG-level reference answers for every field
+// ═══════════════════════════════════════════════════════════════════
+
+const M = {
+  // ── Q1: whatsapp_webhook() classification ──
+  q1_op1: "HTTP request parsing — extracts form data from the Starlette Request object (from_number, body, profile_name, message_sid) via get_webhook_input()",
+  q1_op2: "Session retrieval — loads or initializes the customer session from Redis via session_repo.get_session(), including JSON deserialization and default construction on KeyError",
+  q1_op3: "FSM state hydration — reconstructs a WhatsAppFSM instance from the persisted dict via WhatsAppFSM.from_dict(), mapping string state values back to State enum members",
+  q1_op4: "Special command routing — checks for meta-commands ('all my messages', 'reset', 'cooldown') via handle_special_commands() before FSM dispatch, short-circuiting the main flow",
+  q1_op5: "Menu/state dispatch — routes to the correct handle_* function based on current FSM state (handle_main_menu_selection, handle_sales_inquiries, etc.), triggering FSM transitions",
+  q1_op6: "Twilio response dispatch — formats and sends WhatsApp messages via client.messages.create(), including template selection, content variable assembly, and media URL attachment",
+  q1_cat: "CAT-6 Orchestration — it coordinates session retrieval (CAT-1), FSM transitions (CAT-2), AI processing (CAT-3), and Twilio dispatch (CAT-3) across multiple concerns",
+  q1_solid: "SOLID-SRP — six distinct reasons to change: request parsing format, session storage mechanism, FSM transition rules, special command set, menu routing logic, Twilio API contract",
+  q1_summary: "whatsapp_webhook() is a CAT-6 orchestrator that directly performs operations from at least four other categories (parsing, session IO, FSM mutation, external dispatch) instead of delegating to single-responsibility collaborators, violating SRP with six distinct reasons to change.",
+
+  // ── Q1 Debugger ──
+  q1d_input: "Dict with keys: from_number (str, e.g. 'whatsapp:+447700000000'), body (str, 'hello'), profile_name (str, 'Test User'), message_sid (str, 'SM_SETUP_001'). from_number is already a string at this point, not bytes.",
+  q1d_session: "No — for a new customer, get_session() catches the KeyError from Redis (key does not exist) and falls into the except block, calling initialize_user_session() to create a default session dict. No ValueError is raised.",
+  q1d_fsm: "State.MAIN_MENU — the default state assigned by initialize_user_session(). The FSM is pure in-memory at this point; from_dict() only reads the dict passed to it, it does not touch Redis.",
+  q1d_special: "False — 'hello' is not in the special commands set ('all my messages', 'reset', etc.), so handle_special_commands() returns False and execution continues to the main menu dispatch.",
+  q1d_handle: "handle_main_menu_selection() — because fsm.state is MAIN_MENU. For the 'hello' body which is not a recognized button ID, this function sends the main menu template via Twilio.",
+  q1d_defend: "CAT-3 describes a method with a single external side effect (e.g. payment.charge()). whatsapp_webhook() coordinates session retrieval, FSM hydration, state-dependent routing, AI processing, and Twilio dispatch — five distinct operations spanning four CAT-x categories. That is the definition of CAT-6 Orchestration: it coordinates multiple CAT-x operations, it does not perform a single external command.",
+
+  // ── Q2: Redis client analysis ──
+  q2_file1: "app/redis_helper.py",
+  q2_type1: "redis.StrictRedis (synchronous)",
+  q2_file2: "app/main.py",
+  q2_type2: "redis.StrictRedis (synchronous) — second independent instance",
+  q2_file3: "app/turbo_diesel_ai.py",
+  q2_type3: "redis.StrictRedis (synchronous) — third independent instance",
+  q2_solid: "SOLID-DIP — three concrete instances of the same synchronous client, each instantiated directly rather than injected through a shared abstraction. Also SOLID-SRP: the same keyspace is accessed from three separate modules with no single owner.",
+  q2_blocking: "Customer B's coroutine is queued in the asyncio event loop but cannot execute. asyncio is single-threaded and cooperative — it only switches between coroutines at explicit await suspension points. redis.StrictRedis.get() is a synchronous blocking call that never yields to the event loop. The entire thread is held until the Redis round-trip completes. Customer B's request sits unprocessed in the socket buffer. With network latency or a slow Redis query, this blocks all concurrent customers, not just B.",
+  q2_fix: "redis.asyncio.Redis (import path: redis.asyncio) — drop-in replacement that makes every Redis call an awaitable coroutine, yielding to the event loop during network IO so other customers' requests can be processed concurrently.",
+
+  // ── Q2 Debugger ──
+  q2d_type: "<class 'redis.client.StrictRedis'> — confirms this is the synchronous client, not redis.asyncio.Redis",
+  q2d_iscoro: "False — redis.StrictRedis.get is a regular synchronous method, not a coroutine function. This proves that calling it inside async def will block the event loop.",
+  q2d_blocked: "No — the second curl hangs in the terminal with no response. It cannot be processed because the event loop is blocked at the breakpoint (simulating a slow synchronous call). Only after pressing F9 does the second request begin processing.",
+  q2d_label: "CONC-3 — synchronous call inside async handler blocks the event loop. The minimum fix is replacing redis.StrictRedis with redis.asyncio.Redis and awaiting every call.",
+
+  // ── Q3: .keys() analysis ──
+  q3_keys_total: "Count from grep — typically 2-4 calls across main.py and redis_helper.py (exact count depends on codebase version). Each one is a full O(N) keyspace scan.",
+  q3_keys_async: "All of them — they are all called from within async def handlers, meaning every .keys() call blocks the entire event loop for the duration of the scan.",
+  q3_scaniter: "0 — scan_iter is never used anywhere in the codebase. Every key enumeration uses the blocking .keys() method.",
+  q3_customer: "Complete service freeze. With 50k keys, .keys() takes ~50-200ms depending on value sizes. During that time the Redis server is single-threaded and cannot serve any other commands. Combined with the synchronous Python client (CONC-3), the asyncio event loop is also blocked. Every customer connected to the system experiences a stall — not just the one who triggered the call.",
+  q3_defend: "keys() is O(N) where N is the total number of keys in the database — it scans every key, matches the pattern, and returns them all in a single response. scan_iter uses SCAN which is O(1) per call, iterating in batches of ~10 keys with a cursor, allowing Redis to serve other commands between batches. The overall traversal is still O(N), but it is amortised and non-blocking. The guide labels are CONC-3 (synchronous blocking call in async context) and CAT-1/CAT-3 category mismatch: .keys() is classified as a CAT-1 Query (returns data) but under load it behaves as a CAT-3 Command (catastrophic side effect on all other clients). This matters for test template selection because a CAT-1 test (A.1 — assert return value) would pass, but it would not catch the production failure. The test must also assert latency or use scan_iter to document the fix.",
+
+  // ── Q4: Decorator analysis ──
+  q4_nonendpoint: "Verify via grep — check whether @handle_whatsapp_errors is applied to any function that is not an @app.post/@app.get endpoint. If it appears on internal methods like validate_state or process_with_ai, that confirms DEC-ERR-1 layer violation.",
+  q4_fail1: "If the Request object is passed as a keyword argument (request=request) instead of a positional argument, next(arg for arg in args if isinstance(arg, Request)) raises StopIteration because args contains no Request. The decorator crashes before it can handle the actual error.",
+  q4_fail2: "If the decorated function raises before the Request's form_data has been parsed (e.g. during argument validation), the except block tries to read from_number from form data that does not exist yet, raising a second exception that masks the original error. The customer gets a generic 500 instead of the intended error message.",
+  q4_oop: "SOLID-DIP — the decorator depends on the concrete Starlette Request type (an HTTP-layer object). Any domain method it decorates now implicitly depends on HTTP infrastructure it should never know about. This is also OOP-ENCAP: the decorator reaches into the transport layer to extract from_number, breaking the boundary between HTTP handling and domain logic.",
+  q4_defend: "SOLID-DIP (Dependency Inversion Principle) is violated because the decorator depends on a concrete HTTP-layer type (starlette.requests.Request) and forces that dependency onto every function it decorates. When applied to validate_state — a pure domain method — it means the domain layer now transitively depends on the HTTP layer. DIP says high-level modules (domain logic) should not depend on low-level modules (HTTP framework). The decorator should only exist on the outermost endpoint function, and domain methods should raise domain exceptions that the endpoint layer catches and translates.",
+
+  // ── Q4 Debugger ──
+  q4d_from: "Either the correct from_number extracted from the Request's form data, or undefined/raises if the exception fired before form_data was populated. Check the Variables panel — if from_number is None or the except block itself raises, this confirms failure mode 2.",
+  q4d_twilio: "It depends on whether from_number was successfully extracted. If from_number is valid, client.messages.create() will attempt to send an error notification to the customer via WhatsApp — this may succeed or fail depending on Twilio credentials and the from_number format. If from_number is None, the create() call itself raises, masking the original error.",
+  q4d_status: "The decorator returns a Response with status_code from the WhatsAppException (400 in this case). Twilio receives HTTP 400.",
+  q4d_retry: "Twilio retries webhook delivery on any non-2xx response. It will retry up to 3 times with exponential backoff (1s, 2s, 4s). Each retry sends the same webhook payload, potentially triggering the same error handler three more times — and if the handler has side effects (like sending an error message to the customer), the customer receives duplicate error notifications.",
+
+  // ── Q5: State.ERROR bug ──
+  q5_value: '("Error",) — a tuple containing the string "Error", not the string "Error" itself. The trailing comma in ERROR = ("Error",) creates a single-element tuple.',
+  q5_raises: 'ValueError: "Error" is not a valid State — because State("Error") looks for a member whose .value equals the string "Error", but State.ERROR.value is the tuple ("Error",), not the string. No member matches.',
+  q5_redis: 'The to_dict() method calls self.state.value, which for State.ERROR returns ("Error",). JSON serialization writes this as ["Error"] (a JSON array). The "state" field in Redis becomes the array ["Error"] instead of the string "Error".',
+  q5_crash: "from_dict() reads the state field and calls State(state_value). If the stored value is the list [\"Error\"], State([\"Error\"]) raises ValueError because no State member has a list as its value. This crashes at the State() constructor call inside from_dict(), approximately line 22 of fsm.py.",
+  q5_recoverable: "No — the customer is permanently stuck. Every subsequent message triggers from_dict() which crashes on the corrupted state value. The only fix is manual Redis intervention: redis-cli del \"whatsapp:+44...\" to reset their session, or redis-cli set with a corrected JSON payload.",
+  q5_fix: "Remove the trailing comma: ERROR = \"Error\" instead of ERROR = (\"Error\",). One character deletion converts the tuple back to a string.",
+  q5_label: "This is a BUG, not an ERR-x or SOLID violation. It does not fit the exception handling taxonomy (ERR-x) because the system is not mishandling an exception — it is producing a corrupt value. It is not a SOLID violation because the design pattern is correct (enum member with string value); the implementation has a syntax error. The characterization test must assert the current broken behaviour: assert State.ERROR.value == (\"Error\",) — documenting the bug so the refactor can fix it safely.",
+
+  // ── Q5 Debugger ──
+  q5d_field: 'The exact value depends on JSON serialization of the tuple. Expect either ["Error"] (JSON array) or ("Error",) as a string — either way it is not the plain string "Error" that from_dict() expects.',
+  q5d_crash: "Yes — from_dict crashes with ValueError at the State(state_value) call. The stored value is a list or tuple representation, not a valid State member value. The exception message is approximately: '(\"Error\",) is not a valid State' or '['Error'] is not a valid State'.",
+  q5d_stuck: "Yes — permanently. Every message from this customer now triggers from_dict() which immediately crashes. There is no self-healing path. The customer's session must be manually deleted from Redis or the state field must be manually corrected.",
+
+  // ── Q6: Observations ──
+  q6_SM001: 'fsm_state.state = "Main Menu". Redis key "whatsapp:+447700000000" is created with a full session object including menu, has_seen_menu, inquiry_in_progress, fsm_state with state="Main Menu". The main menu template is sent via Twilio.',
+  q6_SM002: 'fsm_state.state = "Sales Inquiries". State changed from "Main Menu" to "Sales Inquiries". FSM history now has one entry recording the transition. The sales submenu template is dispatched.',
+  q6_SM003: 'fsm_state.state = "New Sales Inquiry". current_reference_id is now non-null, starting with "sal_" followed by a unique identifier. inquiry_in_progress = true. The system is now ready to accept a parts inquiry.',
+  q6_SM004: 'State may transition through "AI Processing" to "AI Processing Done" during the handler. If the Claude API call succeeds, client.messages.create() is called to send the AI response. Check ic() output in the console to confirm the Twilio dispatch.',
+  q6_SM005: 'The behaviour depends on current state. After SM004, the state is in AI_PROCESSING_DONE or similar. The unknown text "this is not a valid command" is likely routed to process_with_ai() (treated as a follow-up inquiry) rather than crashing. HTTP 200 is returned. If the state were MAIN_MENU, this text would likely trigger the default menu re-send.',
+  q6_unexpected: "SM005 does not crash — it routes through the current state's handler. The same input ('this is not a valid command') produces completely different behaviour depending on which state the FSM is in. In MAIN_MENU it would re-send the menu. In NEW_SALES_INQUIRY it is treated as a parts inquiry and sent to Claude.",
+  q6_defend: "PAT-8 (State Pattern) — the same input produces different outputs depending on the object's internal state. The FSM's current state determines which handler processes the message. This is the correct pattern for a conversational system, but it means characterization tests must seed the FSM to a known state before sending input. Testing from a cold start only covers the MAIN_MENU path.",
+
+  // ── Q6 Debugger ──
+  q6d_c1: "fsm.state = State.NEW_SALES_INQUIRY (after SM003). inquiry_in_progress = True. The session was loaded from Redis and the FSM hydrated from the persisted dict.",
+  q6d_c2_before: "fsm.state = whatever state the handler is transitioning from (depends on which handle_* function runs). Capture the exact value from the Variables panel.",
+  q6d_c2_after: "fsm.state = the target state after transition_to(). The FSM object's internal state has changed in memory.",
+  q6d_c2_redis: "No — Redis is NOT updated at this point. The transition only mutates the in-memory FSM object. Redis is only written when session_repo.save_session() is called later in the handler. This means if the process crashes between transition and save, the state change is lost.",
+  q6d_c3: "Multiple ic() calls fire before the anthropic_client call — typically 3-8 depending on the code path. Each ic() call prints debug output to stdout. In production this means every single customer message generates multiple lines of debug noise in the logs, with no log level control. This is LOG-1 — replace ic() with structured logging (structlog).",
+  q6d_c4: "Yes — current_reference_id should be non-null (e.g. 'sal_abc123') because it was set when the new_inquiry button was pressed in SM003. This value is passed into the Twilio template's content_variables.",
+  q6d_rw: "Concern 1 (session load) reads from Redis. Concern 4 area (after all processing) writes to Redis via session_repo.save_session(). There are typically 1-2 write calls across the full SM004 flow: one to save the session after processing, and possibly one for cooldown/rate-limit keys.",
+  q6d_both: "session_repo is the concern that both reads (get_session at the top) and writes (save_session at the bottom). SOLID-SRP violation: a single object performing both read and write IO in the same request cycle, with the orchestrator manually coordinating the timing. The repository should be injected and the read/write calls should be the orchestrator's responsibility, not mixed into the domain logic.",
+
+  // ── Q7: Production failure ──
+  q7_scenario: "Synchronous Redis (CONC-3) blocking the asyncio event loop — every redis.StrictRedis call in every handler blocks all concurrent requests.",
+  q7_impact: "All customers are affected simultaneously. When any single customer's request triggers a Redis call, every other customer's coroutine is blocked until that call completes. Under normal load (~50ms per Redis round-trip) this is barely noticeable. Under load spikes, Redis slowdowns, or combined with .keys() scans, the entire service queues. Customers experience delayed or timed-out responses. Twilio may retry, compounding the problem.",
+  q7_detection: "No detection signal exists in current logging. print() and ic() do not capture request latency, queue depth, or event loop blocking time. A customer experiencing 5s delays would be invisible in logs. The only signal would be Twilio retry webhooks arriving (same MessageSid appearing multiple times), but the code does not check for duplicates.",
+  q7_fix: "CONC-3 — replace redis.StrictRedis with redis.asyncio.Redis across all three files. This is the minimum fix. The structural fix is SOLID-DIP: inject a single async Redis client through a Protocol interface so all three modules share one connection pool.",
+  q7_defend: "The previous refactor reorganised the code into clean modules (services, repositories, routes) but did not change the Redis client from synchronous to asynchronous. Structural correctness (SOLID-SRP: each module has one responsibility) does not resolve a concurrency pathology (CONC-3: synchronous IO in async context). You can have perfectly separated concerns that all independently block the event loop. The fix requires changing the runtime behaviour (sync → async), not the code organisation. This is why the guide distinguishes SOLID-SRP (design-time constraint) from CONC-3 (runtime constraint) — they are orthogonal concerns.",
+
+  // ── Q7 Debugger scenarios ──
+  q7d_redis: "No — the second request did not receive a response before pressing F9. The terminal hung with no output. This proves that the synchronous Redis call blocks the entire asyncio event loop. While one coroutine is waiting for Redis, no other coroutine can run. The customer whose message arrived during that window experiences a full delay equal to the first customer's Redis round-trip time. Under load, this compounds: N concurrent customers means the Nth customer waits for N-1 Redis calls to complete sequentially.",
+  q7d_error: "After the simulated error, Redis contains the session with fsm_state.state set to the tuple-serialised value of State.ERROR. The customer sends their next message, from_dict() is called, it reads the corrupted state value, calls State() with a tuple/list argument, and raises ValueError. The customer is permanently stuck — every subsequent message crashes at from_dict() before any handler can run. The only recovery is manual redis-cli intervention.",
+  q7d_idempotent: "Yes — current_reference_id changes on the second call because generate_departmental_reference_id() is called again, producing a new unique ID. A second interaction node is also created. This confirms the system has no idempotency check — it does not inspect MessageSid to detect Twilio retries. The characterization test must assert that two identical POSTs with the same MessageSid produce identical Redis state (they currently do not, which documents the bug).",
 };
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// COMPONENTS
+// ═══════════════════════════════════════════════════════════════════
 
-function countTasks(sections) {
-  let total = 0, done = 0;
-  for (const sec of sections) {
-    for (const task of sec.tasks) {
-      for (const st of task.subtasks) {
-        total++;
-        if (st.done) done++;
-      }
-    }
-  }
-  return { total, done };
-}
-
-function initModules() {
-  return MODULES.map(mod => ({
-    ...mod,
-    sections: mod.sections.map(sec => ({
-      ...sec,
-      tasks: sec.tasks.map(task => ({
-        ...task,
-        subtasks: task.subtasks.map(st => ({ ...st, done: false })),
-      })),
-    })),
-  }));
-}
-
-// ─── STYLES ─────────────────────────────────────────────────────────────────
-
-const font = "'IBM Plex Mono', 'Fira Code', monospace";
-const fontSans = "'IBM Plex Sans', system-ui, sans-serif";
-
-const S = {
-  root: {
-    minHeight: "100vh",
-    background: "#080808",
-    color: "#e4e4e7",
-    fontFamily: fontSans,
-    fontSize: 14,
-  },
-  header: {
-    borderBottom: "1px solid #1c1c1e",
-    padding: "20px 32px 16px",
-    display: "flex",
-    alignItems: "center",
-    gap: 20,
-    position: "sticky",
-    top: 0,
-    background: "#080808",
-    zIndex: 10,
-  },
-  titleBlock: { flex: 1 },
-  title: { fontFamily: font, fontSize: 15, fontWeight: 600, color: "#fff", letterSpacing: "0.02em" },
-  sub: { fontSize: 12, color: "#52525b", marginTop: 2 },
-  body: { display: "flex", minHeight: "calc(100vh - 65px)" },
-  sidebar: { width: 240, borderRight: "1px solid #1c1c1e", padding: "16px 0", flexShrink: 0, position: "sticky", top: 65, alignSelf: "flex-start", height: "calc(100vh - 65px)", overflowY: "auto" },
-  main: { flex: 1, padding: "28px 36px", overflowY: "auto" },
-  modBtn: (active, color) => ({
-    width: "100%",
-    textAlign: "left",
-    background: active ? "#111" : "transparent",
-    border: "none",
-    borderLeft: active ? `3px solid ${color}` : "3px solid transparent",
-    padding: "10px 18px",
-    cursor: "pointer",
-    color: active ? "#fff" : "#52525b",
-    fontFamily: fontSans,
-    fontSize: 13,
-    fontWeight: active ? 600 : 400,
-    transition: "all 0.12s",
-  }),
-  secBtn: (active) => ({
-    width: "100%",
-    textAlign: "left",
-    background: active ? "#0d0d0d" : "transparent",
-    border: "none",
-    borderLeft: active ? "2px solid #3f3f46" : "2px solid transparent",
-    padding: "7px 18px 7px 28px",
-    cursor: "pointer",
-    color: active ? "#a1a1aa" : "#3f3f46",
-    fontFamily: fontSans,
-    fontSize: 12,
-    transition: "all 0.12s",
-  }),
-  card: {
-    background: "#0f0f0f",
-    border: "1px solid #1c1c1e",
-    borderRadius: 8,
-    padding: "20px 24px",
-    marginBottom: 14,
-  },
-  taskRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: "8px 0",
-    borderBottom: "1px solid #111",
-    cursor: "pointer",
-  },
-  subtaskRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: "5px 0 5px 18px",
-    cursor: "pointer",
-  },
-  check: (done, color) => ({
-    width: 15,
-    height: 15,
-    borderRadius: 3,
-    border: done ? "none" : `1px solid ${color || "#3f3f46"}`,
-    background: done ? (color || "#3b82f6") : "transparent",
-    flexShrink: 0,
-    marginTop: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "all 0.1s",
-  }),
-  pill: (color) => ({
-    display: "inline-flex",
-    alignItems: "center",
-    background: color + "18",
-    border: `1px solid ${color}40`,
-    color: color,
-    borderRadius: 4,
-    padding: "2px 8px",
-    fontSize: 11,
-    fontFamily: font,
-    fontWeight: 600,
-  }),
-  progress: (pct, color) => ({
-    height: 3,
-    borderRadius: 2,
-    background: "#1c1c1e",
-    overflow: "hidden",
-    position: "relative",
-    marginTop: 6,
-  }),
-  progressFill: (pct, color) => ({
-    position: "absolute",
-    left: 0,
-    top: 0,
-    height: "100%",
-    width: `${pct}%`,
-    background: color,
-    borderRadius: 2,
-    transition: "width 0.3s",
-  }),
-};
-
-// ─── COMPONENTS ─────────────────────────────────────────────────────────────
-
-function ProgressBar({ pct, color }) {
+function CatBadge({ cat }) {
+  const def = CAT_DEFS[cat];
+  if (!def) return <span style={{ color: "#abb2bf", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>{cat}</span>;
   return (
-    <div style={S.progress(pct, color)}>
-      <div style={S.progressFill(pct, color)} />
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      background: def.color + "18", border: `1px solid ${def.color}44`,
+      borderRadius: 4, padding: "2px 8px", fontFamily: "'IBM Plex Mono', monospace",
+      fontSize: 11, color: def.color, fontWeight: 600, letterSpacing: "0.03em",
+    }}>
+      {cat} <span style={{ color: def.color + "99", fontWeight: 400 }}>{def.label}</span>
+    </span>
+  );
+}
+
+function SolidBadge({ label }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      background: "#e06c7518", border: "1px solid #e06c7544",
+      borderRadius: 4, padding: "2px 8px", fontFamily: "'IBM Plex Mono', monospace",
+      fontSize: 11, color: "#e06c75", fontWeight: 600,
+    }}>
+      {label}
+    </span>
+  );
+}
+
+function TemplateBadge({ tmpl }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      background: "#98c37918", border: "1px solid #98c37944",
+      borderRadius: 4, padding: "2px 8px", fontFamily: "'IBM Plex Mono', monospace",
+      fontSize: 11, color: "#98c379", fontWeight: 600,
+    }}>
+      {tmpl}
+    </span>
+  );
+}
+
+function CodeBlock({ code, lang = "bash", title }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <div style={{
+      background: "#1a1d23", borderRadius: 8, border: "1px solid #2d313a",
+      overflow: "hidden", margin: "12px 0",
+    }}>
+      {title && (
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "6px 14px", background: "#21252b", borderBottom: "1px solid #2d313a",
+        }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83" }}>{title}</span>
+          <button onClick={copy} style={{
+            background: "none", border: "1px solid #3e4451", borderRadius: 4,
+            color: copied ? "#98c379" : "#636d83", cursor: "pointer", fontSize: 11,
+            fontFamily: "'IBM Plex Mono', monospace", padding: "2px 8px",
+          }}>{copied ? "✓ copied" : "copy"}</button>
+        </div>
+      )}
+      <pre style={{
+        margin: 0, padding: "14px", overflowX: "auto",
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: 12.5,
+        lineHeight: 1.6, color: "#abb2bf", tabSize: 2,
+      }}>{code}</pre>
     </div>
   );
 }
 
-function Tick({ done, color }) {
+function AnswerField({ id, placeholder, checks, setChecks, multiline = false }) {
+  const val = checks[`answer_${id}`] || "";
+  const set = (v) => setChecks(p => ({ ...p, [`answer_${id}`]: v }));
+  const [showModel, setShowModel] = useState(false);
+  const modelAnswer = M[id];
+  const inputStyle = {
+    width: "100%", background: "#1a1d23", border: "1px solid #2d313a",
+    borderRadius: 6, color: "#abb2bf", fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12.5, padding: "10px 12px", resize: "vertical", outline: "none",
+    transition: "border-color 0.2s", boxSizing: "border-box",
+    minHeight: multiline ? 100 : undefined,
+  };
+  const focus = (e) => e.target.style.borderColor = "#61afef55";
+  const blur = (e) => e.target.style.borderColor = "#2d313a";
   return (
-    <div style={S.check(done, color)}>
-      {done && (
-        <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-          <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+    <div>
+      {multiline
+        ? <textarea value={val} onChange={(e) => set(e.target.value)} placeholder={placeholder}
+            style={inputStyle} rows={4} onFocus={focus} onBlur={blur} />
+        : <input value={val} onChange={(e) => set(e.target.value)} placeholder={placeholder}
+            style={inputStyle} onFocus={focus} onBlur={blur} />
+      }
+      {modelAnswer && (
+        <div style={{ marginTop: 4 }}>
+          <button onClick={() => setShowModel(!showModel)} style={{
+            background: "none", border: "none", cursor: "pointer", padding: "3px 0",
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <span style={{
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+              color: showModel ? "#56b6c2" : "#3e4451", fontWeight: 600,
+              letterSpacing: "0.05em", transition: "color 0.2s",
+            }}>
+              {showModel ? "HIDE" : "REVEAL"} MODEL ANSWER
+            </span>
+            <span style={{
+              color: showModel ? "#56b6c2" : "#3e4451", fontSize: 10,
+              transform: showModel ? "rotate(90deg)" : "rotate(0)",
+              transition: "transform 0.2s, color 0.2s", display: "inline-block",
+            }}>
+              {showModel ? "▾" : "▸"}
+            </span>
+          </button>
+          {showModel && (
+            <div style={{
+              background: "#56b6c206", border: "1px solid #56b6c218",
+              borderLeft: "3px solid #56b6c244", borderRadius: "0 6px 6px 0",
+              padding: "10px 14px", marginTop: 4,
+            }}>
+              <div style={{
+                fontFamily: "'IBM Plex Mono', monospace", fontSize: 9,
+                color: "#56b6c266", fontWeight: 700, letterSpacing: "0.06em",
+                marginBottom: 6,
+              }}>MODEL ANSWER</div>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+                color: "#8fbcbb", lineHeight: 1.65, whiteSpace: "pre-wrap",
+              }}>{modelAnswer}</div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-// ─── APP ────────────────────────────────────────────────────────────────────
+function Checkbox({ id, label, checks, setChecks }) {
+  const checked = !!checks[id];
+  return (
+    <label style={{
+      display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer",
+      padding: "6px 0", userSelect: "none",
+    }}>
+      <div
+        onClick={() => setChecks(p => ({ ...p, [id]: !p[id] }))}
+        style={{
+          width: 18, height: 18, minWidth: 18, borderRadius: 4, marginTop: 2,
+          border: checked ? "2px solid #98c379" : "2px solid #3e4451",
+          background: checked ? "#98c37922" : "transparent",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.15s", cursor: "pointer",
+        }}
+      >
+        {checked && <span style={{ color: "#98c379", fontSize: 12, fontWeight: 700 }}>✓</span>}
+      </div>
+      <span style={{
+        color: checked ? "#98c379" : "#abb2bf", fontSize: 13.5,
+        lineHeight: 1.5, transition: "color 0.15s",
+        textDecoration: checked ? "line-through" : "none",
+        textDecorationColor: "#98c37944",
+      }}>{label}</span>
+    </label>
+  );
+}
 
-export default function App() {
-  const [modules, setModules] = useState(initModules);
-  const [activeModId, setActiveModId] = useState("00");
-  const [activeSectionId, setActiveSectionId] = useState("00-A");
-  const [loaded, setLoaded] = useState(false);
-  const saveRef = useRef(null);
+function Collapsible({ title, children, defaultOpen = false, accent = "#61afef", icon }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{
+      border: `1px solid ${open ? accent + "44" : "#2d313a"}`,
+      borderRadius: 8, overflow: "hidden", margin: "10px 0",
+      transition: "border-color 0.2s",
+    }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: "100%", background: open ? accent + "0a" : "#21252b",
+        border: "none", padding: "12px 16px", cursor: "pointer",
+        display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+        transition: "background 0.2s",
+      }}>
+        <span style={{
+          color: accent, fontSize: 12, transform: open ? "rotate(90deg)" : "rotate(0)",
+          transition: "transform 0.2s", display: "inline-block",
+        }}>▶</span>
+        {icon && <span style={{ fontSize: 14 }}>{icon}</span>}
+        <span style={{
+          color: "#d7dae0", fontFamily: "'IBM Plex Mono', monospace",
+          fontSize: 13, fontWeight: 600, flex: 1,
+        }}>{title}</span>
+      </button>
+      {open && <div style={{ padding: "16px", borderTop: `1px solid ${accent}22` }}>{children}</div>}
+    </div>
+  );
+}
 
-  // Load persisted state
-  useEffect(() => {
-    const saved = storage.get(STORAGE_KEY);
-    if (saved?.value) {
-      try {
-        const parsed = JSON.parse(saved.value);
-        setModules(prev => prev.map(mod => {
-          const sm = parsed.find(x => x.id === mod.id);
-          if (!sm) return mod;
-          return {
-            ...mod,
-            sections: mod.sections.map(sec => {
-              const ss = sm.sections?.find(x => x.id === sec.id);
-              if (!ss) return sec;
-              return {
-                ...sec,
-                tasks: sec.tasks.map(task => {
-                  const st = ss.tasks?.find(x => x.id === task.id);
-                  if (!st) return task;
-                  return {
-                    ...task,
-                    subtasks: task.subtasks.map(sub => {
-                      const found = st.subtasks?.find(x => x.id === sub.id);
-                      return found ? { ...sub, done: found.done } : sub;
-                    }),
-                  };
-                }),
-              };
-            }),
-          };
-        }));
-      } catch {}
-    }
-    setLoaded(true);
+function InterviewDialog({ question, hint, context }) {
+  return (
+    <div style={{
+      background: "linear-gradient(135deg, #e06c7508, #c678dd08)",
+      border: "1px solid #e06c7533", borderRadius: 8, padding: "16px 18px",
+      margin: "14px 0",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
+      }}>
+        <span style={{
+          background: "#e06c7522", color: "#e06c75", padding: "2px 8px",
+          borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace",
+          fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
+        }}>FAANG INTERVIEW</span>
+      </div>
+      <p style={{
+        color: "#d7dae0", fontSize: 14, lineHeight: 1.6, margin: 0,
+        fontWeight: 500, fontStyle: "italic",
+      }}>"{question}"</p>
+      {context && (
+        <p style={{
+          color: "#636d83", fontSize: 12.5, lineHeight: 1.5,
+          marginTop: 10, marginBottom: 0,
+        }}>{context}</p>
+      )}
+      {hint && (
+        <div style={{
+          marginTop: 10, padding: "8px 12px", background: "#1a1d23",
+          borderRadius: 6, borderLeft: "3px solid #e5c07b",
+        }}>
+          <span style={{
+            color: "#e5c07b", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace",
+            fontWeight: 600,
+          }}>HINT: </span>
+          <span style={{ color: "#abb2bf", fontSize: 12.5 }}>{hint}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DebuggerExercise({ title, children }) {
+  return (
+    <div style={{
+      background: "#0d1117", border: "1px solid #e5c07b33",
+      borderRadius: 8, margin: "14px 0", overflow: "hidden",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "10px 16px", background: "#e5c07b0a",
+        borderBottom: "1px solid #e5c07b22",
+      }}>
+        <span style={{
+          fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+          color: "#0d1117", background: "#e5c07b", padding: "1px 5px",
+          borderRadius: 3, fontWeight: 700, letterSpacing: "0.04em",
+        }}>DBG</span>
+        <span style={{
+          fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+          color: "#e5c07b", fontWeight: 700, letterSpacing: "0.04em",
+        }}>DEBUGGER EXERCISE</span>
+        <span style={{
+          color: "#636d83", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace",
+        }}>— {title}</span>
+      </div>
+      <div style={{ padding: "16px" }}>{children}</div>
+    </div>
+  );
+}
+
+function StackTrace({ frames }) {
+  return (
+    <div style={{
+      background: "#1a1d23", borderRadius: 6, border: "1px solid #e06c7533",
+      overflow: "hidden", margin: "10px 0",
+    }}>
+      <div style={{
+        padding: "6px 12px", background: "#e06c750d",
+        borderBottom: "1px solid #e06c7522",
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+        color: "#e06c75", fontWeight: 700, letterSpacing: "0.06em",
+      }}>STACK TRACE</div>
+      {frames.map((f, i) => (
+        <div key={i} style={{
+          padding: "6px 12px", borderBottom: i < frames.length - 1 ? "1px solid #2d313a" : "none",
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, lineHeight: 1.5,
+          display: "flex", gap: 8,
+        }}>
+          <span style={{ color: "#636d83", minWidth: 20 }}>{i}</span>
+          <span style={{ color: "#61afef" }}>{f.file}</span>
+          <span style={{ color: "#636d83" }}>:</span>
+          <span style={{ color: "#d19a66" }}>{f.line}</span>
+          <span style={{ color: "#636d83" }}>in</span>
+          <span style={{ color: "#e5c07b" }}>{f.fn}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProgressRing({ total, done }) {
+  const pct = total > 0 ? (done / total) * 100 : 0;
+  const r = 14, c = 2 * Math.PI * r;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <svg width="36" height="36" viewBox="0 0 36 36">
+        <circle cx="18" cy="18" r={r} fill="none" stroke="#2d313a" strokeWidth="3" />
+        <circle cx="18" cy="18" r={r} fill="none" stroke="#98c379" strokeWidth="3"
+          strokeDasharray={c} strokeDashoffset={c - (c * pct / 100)}
+          strokeLinecap="round" transform="rotate(-90 18 18)"
+          style={{ transition: "stroke-dashoffset 0.5s" }} />
+      </svg>
+      <span style={{
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+        color: pct === 100 ? "#98c379" : "#636d83",
+      }}>{done}/{total}</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════════
+
+export default function Module01() {
+  const [activeSection, setActiveSection] = useState("orientation");
+  const [checks, setChecks] = useState({});
+  const sectionRefs = useRef({});
+  const mainRef = useRef(null);
+
+  const totalChecks = useMemo(() => Object.keys(checks).filter(k => !k.startsWith("answer_")).length, [checks]);
+  const doneChecks = useMemo(() => Object.values(checks).filter((v, i) => {
+    const key = Object.keys(checks)[i];
+    return !key?.startsWith("answer_") && v === true;
+  }).length, [checks]);
+
+  const checkCount = useMemo(() => {
+    let t = 0, d = 0;
+    const ckeys = Object.keys(checks).filter(k => !k.startsWith("answer_"));
+    t = 42; // total expected
+    d = ckeys.filter(k => checks[k] === true).length;
+    return { total: t, done: d };
+  }, [checks]);
+
+  const scrollTo = useCallback((id) => {
+    setActiveSection(id);
+    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  // Persist on change
   useEffect(() => {
-    if (!loaded) return;
-    if (saveRef.current) clearTimeout(saveRef.current);
-    saveRef.current = setTimeout(() => {
-      const slim = modules.map(mod => ({
-        id: mod.id,
-        sections: mod.sections.map(sec => ({
-          id: sec.id,
-          tasks: sec.tasks.map(task => ({
-            id: task.id,
-            subtasks: task.subtasks.map(sub => ({ id: sub.id, done: sub.done })),
-          })),
-        })),
-      }));
-      storage.set(STORAGE_KEY, JSON.stringify(slim));
-    }, 400);
-  }, [modules, loaded]);
-
-  const toggleSubtask = useCallback((modId, secId, taskId, subId) => {
-    setModules(prev => prev.map(mod =>
-      mod.id !== modId ? mod : {
-        ...mod,
-        sections: mod.sections.map(sec =>
-          sec.id !== secId ? sec : {
-            ...sec,
-            tasks: sec.tasks.map(task =>
-              task.id !== taskId ? task : {
-                ...task,
-                subtasks: task.subtasks.map(sub =>
-                  sub.id !== subId ? sub : { ...sub, done: !sub.done }
-                ),
-              }
-            ),
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setActiveSection(e.target.dataset.section);
+            break;
           }
-        ),
-      }
-    ));
+        }
+      },
+      { root: mainRef.current, rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+    );
+    Object.values(sectionRefs.current).forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
   }, []);
 
-  const resetAll = useCallback(() => {
-    if (!window.confirm("Reset all progress? This cannot be undone.")) return;
-    setModules(initModules());
-    storage.delete(STORAGE_KEY);
-  }, []);
-
-  const activeMod = modules.find(m => m.id === activeModId) || modules[0];
-  const activeSection = activeMod.sections.find(s => s.id === activeSectionId) || activeMod.sections[0];
-
-  // Totals
-  const allStats = modules.map(mod => ({ ...countTasks(mod.sections), color: mod.color, id: mod.id }));
-  const grand = allStats.reduce((acc, s) => ({ total: acc.total + s.total, done: acc.done + s.done }), { total: 0, done: 0 });
-  const grandPct = grand.total ? Math.round((grand.done / grand.total) * 100) : 0;
-
-  const modStats = (mod) => countTasks(mod.sections);
-  const secStats = (sec) => {
-    let total = 0, done = 0;
-    for (const task of sec.tasks) {
-      for (const sub of task.subtasks) {
-        total++;
-        if (sub.done) done++;
-      }
+  const regRef = (id) => (el) => {
+    if (el) {
+      el.dataset.section = id;
+      sectionRefs.current[id] = el;
     }
-    return { total, done };
   };
 
+  const P = ({ children, style: s }) => (
+    <p style={{ color: "#abb2bf", fontSize: 14, lineHeight: 1.7, margin: "10px 0", ...s }}>{children}</p>
+  );
+
+  const H2 = ({ children, id }) => (
+    <h2 id={id} style={{
+      fontFamily: "'Outfit', sans-serif", fontSize: 22, fontWeight: 700,
+      color: "#d7dae0", margin: "32px 0 16px", letterSpacing: "-0.02em",
+      borderBottom: "1px solid #2d313a", paddingBottom: 10,
+    }}>{children}</h2>
+  );
+
+  const H3 = ({ children }) => (
+    <h3 style={{
+      fontFamily: "'Outfit', sans-serif", fontSize: 17, fontWeight: 600,
+      color: "#c8ccd4", margin: "24px 0 12px", letterSpacing: "-0.01em",
+    }}>{children}</h3>
+  );
+
   return (
-    <div style={S.root}>
-      {/* Header */}
-      <div style={S.header}>
-        <div style={S.titleBlock}>
-          <div style={S.title}>twilio / refactoring-plan</div>
-          <div style={S.sub}>Module 00 Environment Gate  •  Module 01 Discovery & Characterization Tests  •  {grandPct}% complete  •  {grand.done}/{grand.total} sub-tasks</div>
-          <ProgressBar pct={grandPct} color="#3b82f6" />
-        </div>
-        <button onClick={resetAll} style={{ background: "transparent", border: "1px solid #27272a", color: "#52525b", borderRadius: 5, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontFamily: fontSans }}>
-          Reset
-        </button>
-      </div>
+    <div style={{
+      display: "flex", height: "100vh", background: "#0d1117",
+      fontFamily: "'Inter', -apple-system, sans-serif", color: "#abb2bf",
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 
-      <div style={S.body}>
-        {/* Sidebar */}
-        <div style={S.sidebar}>
-          {modules.map(mod => {
-            const ms = modStats(mod);
-            const mPct = ms.total ? Math.round((ms.done / ms.total) * 100) : 0;
-            return (
-              <div key={mod.id}>
-                <button
-                  style={S.modBtn(activeModId === mod.id, mod.color)}
-                  onClick={() => { setActiveModId(mod.id); setActiveSectionId(mod.sections[0].id); }}
-                >
-                  <div style={{ fontFamily: font, fontSize: 11, color: mod.color, marginBottom: 1 }}>MODULE {mod.id}</div>
-                  <div style={{ fontSize: 12 }}>{mod.subtitle}</div>
-                  <div style={{ fontSize: 11, color: "#52525b", marginTop: 2 }}>{ms.done}/{ms.total} done</div>
-                  <ProgressBar pct={mPct} color={mod.color} />
-                </button>
-                {activeModId === mod.id && mod.sections.map(sec => {
-                  const ss = secStats(sec);
-                  return (
-                    <button key={sec.id} style={S.secBtn(activeSectionId === sec.id)} onClick={() => setActiveSectionId(sec.id)}>
-                      {sec.title.split(" — ")[0]}
-                      <span style={{ color: "#27272a", marginLeft: 6 }}>{ss.done}/{ss.total}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })}
+      {/* ── SIDEBAR ── */}
+      <nav style={{
+        width: 240, minWidth: 240, background: "#0d1117",
+        borderRight: "1px solid #1e2228", display: "flex", flexDirection: "column",
+        overflowY: "auto", padding: "16px 0",
+      }}>
+        <div style={{ padding: "0 16px 16px", borderBottom: "1px solid #1e2228" }}>
+          <div style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 700,
+            color: "#d7dae0", letterSpacing: "-0.02em",
+          }}>MODULE 01</div>
+          <div style={{
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#636d83",
+            marginTop: 2, letterSpacing: "0.04em",
+          }}>WEBHOOK MONSTER</div>
+          <div style={{ marginTop: 12 }}>
+            <ProgressRing total={checkCount.total} done={checkCount.done} />
+          </div>
         </div>
 
-        {/* Main */}
-        <div style={S.main}>
-          {/* Section header */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-              <span style={S.pill(activeMod.color)}>MODULE {activeMod.id}</span>
-              <span style={{ fontFamily: font, fontSize: 13, color: "#a1a1aa" }}>{activeSection.title}</span>
-            </div>
-            <div style={{ fontSize: 13, color: "#52525b", lineHeight: 1.6, maxWidth: 640 }}>{activeSection.description}</div>
+        <div style={{ padding: "8px 0", flex: 1 }}>
+          {SECTIONS.map((s) => (
+            <button key={s.id} onClick={() => scrollTo(s.id)} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              width: "100%", padding: "7px 16px", background: activeSection === s.id ? "#61afef0d" : "transparent",
+              border: "none", borderLeft: activeSection === s.id ? "2px solid #61afef" : "2px solid transparent",
+              cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+            }}>
+              <span style={{
+                fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+                color: activeSection === s.id ? "#61afef" : "#636d83",
+                minWidth: 16,
+              }}>{s.icon}</span>
+              <span style={{
+                fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+                color: activeSection === s.id ? "#d7dae0" : "#848b98",
+                fontWeight: activeSection === s.id ? 600 : 400,
+              }}>{s.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div style={{
+          padding: "12px 16px", borderTop: "1px solid #1e2228",
+          fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+          color: "#636d83",
+        }}>
+          150 min budget
+        </div>
+      </nav>
+
+      {/* ── MAIN CONTENT ── */}
+      <main ref={mainRef} style={{
+        flex: 1, overflowY: "auto", padding: "32px 48px 120px",
+        maxWidth: 860, margin: "0 auto",
+      }}>
+
+        {/* ═══ ORIENTATION ═══ */}
+        <div ref={regRef("orientation")}>
+          <div style={{
+            fontFamily: "'Outfit', sans-serif", fontSize: 32, fontWeight: 800,
+            color: "#d7dae0", letterSpacing: "-0.03em", lineHeight: 1.2,
+          }}>The WhatsApp Webhook Monster</div>
+          <div style={{
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#636d83",
+            marginTop: 6, letterSpacing: "0.03em",
+          }}>Discovery, Debugging & Characterization Testing Worksheet</div>
+
+          <div style={{
+            background: "#e06c750a", border: "1px solid #e06c7522",
+            borderRadius: 8, padding: "16px 18px", marginTop: 20,
+          }}>
+            <P style={{ color: "#e06c75", fontWeight: 600, fontSize: 13, margin: "0 0 8px" }}>
+              Why this exists
+            </P>
+            <P style={{ margin: 0 }}>
+              The WhatsAppFSMProject refactor proved that <strong style={{ color: "#d7dae0" }}>structural correctness ≠ performance</strong>. 
+              That version compiled cleanly, passed its tests, and ran identically to the monolith — because the tests measured 
+              wiring (method signatures, call counts, argument shapes), not behaviour. When the structure changed, the tests broke.
+            </P>
           </div>
 
-          {/* Tasks */}
-          {activeSection.tasks.map(task => {
-            const taskDone = task.subtasks.every(s => s.done);
-            const taskPct = task.subtasks.length ? Math.round(task.subtasks.filter(s => s.done).length / task.subtasks.length * 100) : 0;
-            return (
-              <div key={task.id} style={S.card}>
-                {/* Task header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{
-                    width: 18, height: 18, borderRadius: 4,
-                    background: taskDone ? activeMod.color : "transparent",
-                    border: taskDone ? "none" : `1px solid ${activeMod.color}50`,
-                    flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    {taskDone && (
-                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                        <path d="M2 5.5L4.5 8L9 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </div>
-                  <span style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: taskDone ? activeMod.color : "#e4e4e7" }}>
-                    {task.label}
-                  </span>
-                  <span style={{ marginLeft: "auto", fontSize: 11, color: "#3f3f46", fontFamily: font }}>
-                    {task.subtasks.filter(s => s.done).length}/{task.subtasks.length}
-                  </span>
-                </div>
-                <ProgressBar pct={taskPct} color={activeMod.color} />
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 16,
+          }}>
+            {[
+              { n: "1", t: "Defend every classification", d: "Name CAT-x, name the SOLID violation, state what the test proves" },
+              { n: "2", t: "Debugger is primary", d: "Most exercises cannot be completed by reading code — observe live state" },
+              { n: "3", t: "Behavioural ≠ structural", d: "Behavioural tests survive restructuring. Structural tests break when wiring moves" },
+            ].map(({ n, t, d }) => (
+              <div key={n} style={{
+                background: "#141820", border: "1px solid #2d313a",
+                borderRadius: 8, padding: "14px",
+              }}>
+                <div style={{
+                  fontFamily: "'Outfit', sans-serif", fontSize: 28, fontWeight: 800,
+                  color: "#61afef22",
+                }}>{n}</div>
+                <div style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+                  color: "#d7dae0", fontWeight: 600, marginBottom: 4,
+                }}>{t}</div>
+                <div style={{ fontSize: 12, color: "#636d83", lineHeight: 1.5 }}>{d}</div>
+              </div>
+            ))}
+          </div>
 
-                {/* Subtasks */}
-                <div style={{ marginTop: 10 }}>
-                  {task.subtasks.map(sub => (
-                    <div
-                      key={sub.id}
-                      style={{ ...S.subtaskRow, opacity: sub.done ? 0.5 : 1 }}
-                      onClick={() => toggleSubtask(activeMod.id, activeSection.id, task.id, sub.id)}
-                    >
-                      <Tick done={sub.done} color={activeMod.color} />
-                      <span style={{
-                        fontSize: 12,
-                        color: sub.done ? "#52525b" : "#a1a1aa",
-                        textDecoration: sub.done ? "line-through" : "none",
-                        fontFamily: sub.label.includes("pytest") || sub.label.startsWith("grep") || sub.label.startsWith("mkdir") || sub.label.startsWith("git") || sub.label.startsWith("redis") || sub.label.startsWith("pip") || sub.label.startsWith("docker") || sub.label.startsWith("uvicorn") || sub.label.startsWith("python") || sub.label.startsWith("curl") ? font : fontSans,
-                        lineHeight: 1.5,
-                      }}>
-                        {sub.label}
-                      </span>
-                    </div>
+          <div style={{
+            marginTop: 16, padding: "12px 16px", background: "#e5c07b0a",
+            border: "1px solid #e5c07b22", borderRadius: 8,
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5,
+            color: "#e5c07b",
+          }}>
+            WARNING: The system is in production. Do NOT modify <code style={{ background: "#1a1d23", padding: "1px 6px", borderRadius: 3 }}>app/main.py</code> until every test in Part 2 is green.
+          </div>
+        </div>
+
+        {/* ═══ PRE-PROMPT CHECKLIST ═══ */}
+        <div ref={regRef("pre-prompt")}>
+          <H2>Pre-Prompt Checklist — DT-METHOD-1</H2>
+          <P>Run this before writing any test scaffold. If you cannot answer all three, do not proceed.</P>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div style={{ background: "#141820", border: "1px solid #2d313a", borderRadius: 8, padding: "14px" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#61afef", fontWeight: 700, marginBottom: 10 }}>
+                1. CAT-x CATEGORY
+              </div>
+              {Object.entries(CAT_DEFS).map(([k, v]) => (
+                <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <CatBadge cat={k} />
+                  <span style={{ fontSize: 11, color: "#636d83" }}>{v.desc}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: "#141820", border: "1px solid #2d313a", borderRadius: 8, padding: "14px" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e06c75", fontWeight: 700, marginBottom: 10 }}>
+                2. OOP / SOLID LABEL
+              </div>
+              {Object.entries(SOLID_DEFS).map(([k, v]) => (
+                <div key={k} style={{ marginBottom: 6 }}>
+                  <SolidBadge label={k} />
+                  <span style={{ fontSize: 11, color: "#636d83", marginLeft: 6 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: "#141820", border: "1px solid #2d313a", borderRadius: 8, padding: "14px" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#98c379", fontWeight: 700, marginBottom: 10 }}>
+                3. TEST TEMPLATE
+              </div>
+              {Object.entries(TEMPLATES).map(([k, v]) => (
+                <div key={k} style={{ marginBottom: 6 }}>
+                  <TemplateBadge tmpl={k} />
+                  <span style={{ fontSize: 11, color: "#636d83", marginLeft: 6 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ═══ SETUP ═══ */}
+        <div ref={regRef("setup")}>
+          <H2>Initial Setup</H2>
+          <P style={{ color: "#636d83", fontStyle: "italic" }}>Run config already created — verify Redis and the pipeline.</P>
+
+          <Checkbox id="setup_redis" label="redis-cli ping returns PONG" checks={checks} setChecks={setChecks} />
+
+          <CodeBlock title="Step 1 — Verify Redis" code={`redis-cli ping\n# Expected: PONG\n# If not: redis-server --daemonize yes`} />
+
+          <Checkbox id="setup_uvicorn" label="Uvicorn running confirmed in PyCharm console" checks={checks} setChecks={setChecks} />
+
+          <H3>Step 3 — Verify the Pipeline</H3>
+          <CodeBlock title="Smoke test curl" code={`curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447700000000" \\\n  -d "Body=hello" \\\n  -d "ProfileName=Test User" \\\n  -d "MessageSid=SM_SETUP_001"`} />
+          <CodeBlock title="Check Redis" code={`redis-cli get "whatsapp:+447700000000"`} />
+          <Checkbox id="setup_curl" label="Setup curl returns HTTP 200; Redis key exists" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ Q1 — whatsapp_webhook() ═══ */}
+        <div ref={regRef("q1")}>
+          <H2>Q1 — Classify <code style={{ color: "#61afef" }}>whatsapp_webhook()</code></H2>
+
+          <InterviewDialog
+            question="whatsapp_webhook() is decorated with @app.post('/webhook'). What is its CAT-x category? Name every distinct operation before answering."
+            context="A function that coordinates session retrieval, FSM dispatch, AI processing, and Twilio dispatch is a CAT-6. But a CAT-6 that also performs Redis reads/writes directly, constructs FSM state, and formats Twilio payloads is a SOLID-SRP violation."
+            hint="Count every distinct operation. If it does more than one thing from different categories, name each one separately."
+          />
+
+          <CodeBlock title="grep the body first" code={`grep -n "session_repo\\|fsm\\|client\\.messages\\|process_with_ai\\|icecream\\|ic(" app/main.py | head -40`} />
+
+          <H3>Name the six concerns</H3>
+          {[1,2,3,4,5,6].map(n => (
+            <div key={n} style={{ marginBottom: 8 }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83", marginBottom: 4 }}>
+                Distinct operation {n}:
+              </div>
+              <AnswerField id={`q1_op${n}`} placeholder={`Concern ${n}...`} checks={checks} setChecks={setChecks} />
+            </div>
+          ))}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
+            <div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#61afef", marginBottom: 4 }}>CAT-x classification:</div>
+              <AnswerField id="q1_cat" placeholder="CAT-?" checks={checks} setChecks={setChecks} />
+            </div>
+            <div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e06c75", marginBottom: 4 }}>SOLID label:</div>
+              <AnswerField id="q1_solid" placeholder="SOLID-?" checks={checks} setChecks={setChecks} />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83", marginBottom: 4 }}>One-sentence summary:</div>
+            <AnswerField id="q1_summary" placeholder="What it does..." checks={checks} setChecks={setChecks} />
+          </div>
+
+          <DebuggerExercise title="Q1: Observe the Six Concerns Live">
+            <P>Set a breakpoint on the first line of <code style={{ color: "#61afef" }}>whatsapp_webhook</code>:</P>
+            <CodeBlock code={`input_data = await get_webhook_input(request)`} lang="python" />
+            <P>Send the setup curl. PyCharm halts. Step over (F8) through each distinct operation. <strong style={{ color: "#e5c07b" }}>Do not read ahead. Observe only the Variables panel.</strong></P>
+
+            <StackTrace frames={[
+              { file: "app/main.py", line: "~L1200", fn: "whatsapp_webhook" },
+              { file: "app/main.py", line: "~L85", fn: "get_webhook_input" },
+              { file: "app/redis_helper.py", line: "~L12", fn: "get_session" },
+              { file: "app/fsm.py", line: "~L45", fn: "WhatsAppFSM.from_dict" },
+              { file: "app/main.py", line: "~L150", fn: "handle_special_commands" },
+            ]} />
+
+            {[
+              { id: "q1d_input", q: "After get_webhook_input — input_data keys present:" },
+              { id: "q1d_session", q: "After session_repo.get_session — did it raise ValueError?" },
+              { id: "q1d_fsm", q: "After WhatsAppFSM.from_dict — fsm.state value:" },
+              { id: "q1d_special", q: "After handle_special_commands — return value True or False?" },
+              { id: "q1d_handle", q: "Which handle_* function was last called before return?" },
+            ].map(({ id, q }) => (
+              <div key={id} style={{ marginBottom: 8 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e5c07b", marginBottom: 4 }}>{q}</div>
+                <AnswerField id={id} placeholder="Observed value..." checks={checks} setChecks={setChecks} />
+              </div>
+            ))}
+
+            <InterviewDialog
+              question="A colleague says whatsapp_webhook() is CAT-3 (Command) because it sends a Twilio message. Explain in one sentence why they are wrong."
+              hint="Use the CAT-6 definition: coordinates multiple CAT-x operations. CAT-3 is a single external IO operation."
+            />
+            <AnswerField id="q1d_defend" placeholder="They are wrong because..." checks={checks} setChecks={setChecks} multiline />
+          </DebuggerExercise>
+
+          <Checkbox id="q1_done" label="Q1 complete — six operations named, CAT-x and SOLID label written, debugger exercise done" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ Q2 — Redis Client ═══ */}
+        <div ref={regRef("q2")}>
+          <H2>Q2 — Synchronous Redis in Async Handler</H2>
+
+          <InterviewDialog
+            question="session_repo.get_session() is called inside an async def handler. Open redis_helper.py and find the Redis client it wraps. What happens to every other coroutine while this call runs?"
+            context="Calling redis.StrictRedis inside async def blocks the event loop entirely. The await keyword only yields to the event loop at actual async suspension points. A synchronous Redis call is not one."
+          />
+
+          <CodeBlock title="Find every Redis client" code={`grep -n "StrictRedis\\|redis\\.Redis\\|redis\\.asyncio" app/redis_helper.py app/main.py app/turbo_diesel_ai.py`} />
+
+          <H3>Redis client inventory</H3>
+          {[1,2,3].map(n => (
+            <div key={n} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <AnswerField id={`q2_file${n}`} placeholder={`File ${n}...`} checks={checks} setChecks={setChecks} />
+              <AnswerField id={`q2_type${n}`} placeholder={`Client type...`} checks={checks} setChecks={setChecks} />
+            </div>
+          ))}
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e06c75", marginBottom: 4 }}>SOLID label for three separate clients targeting the same keyspace:</div>
+            <AnswerField id="q2_solid" placeholder="SOLID-?" checks={checks} setChecks={setChecks} />
+          </div>
+
+          <InterviewDialog
+            question="If two customers message simultaneously and Customer A's handler is executing redis_client.get() synchronously, what happens to Customer B's request?"
+            hint="Use the event loop model — not intuition. asyncio runs one coroutine at a time. Synchronous calls don't yield."
+          />
+          <AnswerField id="q2_blocking" placeholder="Customer B experiences..." checks={checks} setChecks={setChecks} multiline />
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#98c379", marginBottom: 4 }}>Exact import path for the fix:</div>
+            <AnswerField id="q2_fix" placeholder="redis.asyncio.Redis or..." checks={checks} setChecks={setChecks} />
+          </div>
+
+          <DebuggerExercise title="Q2: Confirm the Synchronous Client">
+            <P>Set a breakpoint in <code style={{ color: "#61afef" }}>session_repo.get_session()</code> on the first Redis call. Send the setup curl.</P>
+            <P><strong style={{ color: "#e5c07b" }}>Evaluate Expression</strong> (Alt+F8):</P>
+            <CodeBlock code={`type(redis_client)\nimport inspect\ninspect.iscoroutinefunction(redis_client.get)`} lang="python" />
+            <P>While paused, send a second curl from a different number:</P>
+            <CodeBlock code={`curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447711111111" \\\n  -d "Body=hello" \\\n  -d "MessageSid=SM_CONCURRENT_001"`} />
+
+            {[
+              { id: "q2d_type", q: "type(redis_client) result:" },
+              { id: "q2d_iscoro", q: "inspect.iscoroutinefunction(redis_client.get) result:" },
+              { id: "q2d_blocked", q: "Did the second curl respond before you pressed F9? Yes / No" },
+              { id: "q2d_label", q: "Guide label for this violation:" },
+            ].map(({ id, q }) => (
+              <div key={id} style={{ marginBottom: 8 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e5c07b", marginBottom: 4 }}>{q}</div>
+                <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+              </div>
+            ))}
+          </DebuggerExercise>
+
+          <Checkbox id="q2_done" label="Q2 complete — three Redis clients found, concurrent curl observed, CONC-3 confirmed" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ Q3 — .keys() ═══ */}
+        <div ref={regRef("q3")}>
+          <H2>Q3 — The <code style={{ color: "#e06c75" }}>.keys()</code> Time Bomb</H2>
+
+          <InterviewDialog
+            question="Find every .keys() call in the live codebase. At what key count does this become a production incident?"
+            context="redis.StrictRedis.keys(pattern) performs an O(N) full-keyspace scan and blocks the Redis event loop until it completes. It is a CAT-1 Query that behaves like a CAT-3 Command under load."
+            hint="This is a DT-METHOD-1 category mismatch — the function's category changes under load."
+          />
+
+          <CodeBlock title="Find all .keys() and scan_iter usage" code={`grep -n "\\.keys(" app/main.py app/redis_helper.py app/turbo_diesel_ai.py\ngrep -n "scan_iter" app/main.py app/redis_helper.py app/turbo_diesel_ai.py`} />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+            {[
+              { id: "q3_keys_total", q: "Total .keys( calls in live code:" },
+              { id: "q3_keys_async", q: "Calls inside async def functions:" },
+              { id: "q3_scaniter", q: "Occurrences of scan_iter:" },
+              { id: "q3_customer", q: "Customer experience during .keys() with 50k keys:" },
+            ].map(({ id, q }) => (
+              <div key={id}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83", marginBottom: 4 }}>{q}</div>
+                <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+              </div>
+            ))}
+          </div>
+
+          <InterviewDialog
+            question="What is the O() complexity of scan_iter vs keys()? Which guide label describes the violation and why does the category label matter for choosing the test template?"
+          />
+          <AnswerField id="q3_defend" placeholder="Defend your classification..." checks={checks} setChecks={setChecks} multiline />
+
+          <Checkbox id="q3_done" label="Q3 complete — all .keys() calls counted, scan_iter occurrences confirmed" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ Q4 — Decorator ═══ */}
+        <div ref={regRef("q4")}>
+          <H2>Q4 — <code style={{ color: "#c678dd" }}>@handle_whatsapp_errors</code> Layer Collapse</H2>
+
+          <InterviewDialog
+            question="The decorator finds the Request object by scanning *args. Name two failure modes, then explain which SOLID principle is violated when this decorator is applied to an internal domain method."
+            context="handle_whatsapp_errors is an HTTP-layer decorator — it belongs only on CAT-6 Orchestration endpoints. Applying it to validate_state collapses two layers that must stay separate."
+          />
+
+          <CodeBlock title="Find all usages" code={`grep -rn "@handle_whatsapp_errors" app/`} />
+
+          <CodeBlock title="The problematic pattern" lang="python" code={`request = next(arg for arg in args if isinstance(arg, Request))`} />
+
+          {[
+            { id: "q4_nonendpoint", q: "Does @handle_whatsapp_errors appear on any non-endpoint function? Paste grep result:" },
+            { id: "q4_fail1", q: "Failure mode 1 (keyword arg):" },
+            { id: "q4_fail2", q: "Failure mode 2 (exception before form_data parsed):" },
+            { id: "q4_oop", q: "OOP label for the layer collapse:" },
+          ].map(({ id, q }) => (
+            <div key={id} style={{ marginBottom: 8 }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83", marginBottom: 4 }}>{q}</div>
+              <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+            </div>
+          ))}
+
+          <InterviewDialog
+            question="Applying this decorator to validate_state means the decorator reaches across a layer boundary it should never cross. Which SOLID principle is violated and why?"
+            hint="What does the decorator depend on that validate_state should never know about?"
+          />
+          <AnswerField id="q4_defend" placeholder="SOLID principle and why..." checks={checks} setChecks={setChecks} multiline />
+
+          <DebuggerExercise title="Q4: Trigger the Decorator's Error Path">
+            <P>Temporarily add as the <strong style={{ color: "#e5c07b" }}>first line</strong> of <code style={{ color: "#61afef" }}>whatsapp_webhook</code>:</P>
+            <CodeBlock lang="python" code={`raise WhatsAppException("debug test", status_code=400)`} />
+            <P>Set a breakpoint inside the <code style={{ color: "#61afef" }}>except WhatsAppException</code> block in the decorator. Restart the debugger. Send the setup curl.</P>
+            {[
+              { id: "q4d_from", q: "from_number value in the except block:" },
+              { id: "q4d_twilio", q: "Does client.messages.create() succeed or raise?" },
+              { id: "q4d_status", q: "What HTTP status code does Twilio receive?" },
+              { id: "q4d_retry", q: "What does Twilio do when it receives a non-200 from a webhook?" },
+            ].map(({ id, q }) => (
+              <div key={id} style={{ marginBottom: 8 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e5c07b", marginBottom: 4 }}>{q}</div>
+                <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+              </div>
+            ))}
+            <div style={{ background: "#e06c750d", border: "1px solid #e06c7522", borderRadius: 6, padding: "10px 14px", marginTop: 10 }}>
+              <span style={{ color: "#e06c75", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700 }}>REMOVE the temporary raise before proceeding.</span>
+            </div>
+          </DebuggerExercise>
+
+          <Checkbox id="q4_done" label="Q4 complete — grep run, error path triggered, temporary raise removed" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ Q5 — State.ERROR ═══ */}
+        <div ref={regRef("q5")}>
+          <H2>Q5 — <code style={{ color: "#e06c75" }}>State.ERROR</code> Tuple Bug</H2>
+
+          <div style={{
+            background: "#e06c750d", border: "1px solid #e06c7533",
+            borderRadius: 8, padding: "16px 18px", margin: "14px 0",
+          }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "#e06c75", fontWeight: 700, marginBottom: 8 }}>
+              CRITICAL — LIVE PRODUCTION BUG
+            </div>
+            <P style={{ margin: 0 }}>
+              The trailing comma makes the value a <code style={{ color: "#e5c07b" }}>tuple</code>. 
+              <code style={{ color: "#c678dd" }}>State.ERROR.value</code> returns <code style={{ color: "#d19a66" }}>('Error',)</code>, not <code style={{ color: "#98c379" }}>'Error'</code>. 
+              Any customer whose session lands in <code style={{ color: "#e06c75" }}>State.ERROR</code> is <strong style={{ color: "#d7dae0" }}>permanently stuck</strong>.
+            </P>
+          </div>
+
+          <CodeBlock title="The bug" lang="python" code={`ERROR = ("Error",)    # ← trailing comma = tuple\n# State.ERROR.value → ("Error",) not "Error"\n# State("Error") → ValueError (no member matches)`} />
+
+          <StackTrace frames={[
+            { file: "app/main.py", line: "~L1250", fn: "process_with_ai" },
+            { file: "app/fsm.py", line: "~L78", fn: "transition_to(State.ERROR)" },
+            { file: "app/redis_helper.py", line: "~L35", fn: "save_session → to_dict()" },
+            { file: "app/fsm.py", line: "~L22", fn: "from_dict → State('Error') → CRASH" },
+          ]} />
+
+          {[
+            { id: "q5_value", q: "State.ERROR.value — what does it return?" },
+            { id: "q5_raises", q: 'State("Error") — what does it raise and why?' },
+            { id: "q5_redis", q: 'What gets written to Redis "state" field after transition_to(State.ERROR)?' },
+            { id: "q5_crash", q: "Where exactly does from_dict() crash on next message?" },
+            { id: "q5_recoverable", q: "Is the customer recoverable without manual Redis intervention?" },
+            { id: "q5_fix", q: "One-character fix:" },
+            { id: "q5_label", q: "Guide label — ERR-x, FT-x, or SOLID? Justify:" },
+          ].map(({ id, q }) => (
+            <div key={id} style={{ marginBottom: 8 }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83", marginBottom: 4 }}>{q}</div>
+              <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+            </div>
+          ))}
+
+          <DebuggerExercise title="Q5: Lock a Customer in the Error State">
+            <P>Temporarily add to the first line of <code style={{ color: "#61afef" }}>process_with_ai()</code>:</P>
+            <CodeBlock lang="python" code={`raise Exception("simulated error")`} />
+            <P>Navigate to <code style={{ color: "#61afef" }}>new_inquiry</code> state (hello → sales → new inquiry), then send <code style={{ color: "#d19a66" }}>I need 3 x 452-0427</code>.</P>
+            <CodeBlock code={`redis-cli get "whatsapp:+447700000000"`} />
+            {[
+              { id: "q5d_field", q: "fsm_state.state field written to Redis (exact value):" },
+              { id: "q5d_crash", q: "Send another hello — does from_dict crash? Exception and line:" },
+              { id: "q5d_stuck", q: "Is the customer permanently stuck?" },
+            ].map(({ id, q }) => (
+              <div key={id} style={{ marginBottom: 8 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e5c07b", marginBottom: 4 }}>{q}</div>
+                <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+              </div>
+            ))}
+            <div style={{ background: "#e06c750d", border: "1px solid #e06c7522", borderRadius: 6, padding: "10px 14px", marginTop: 10 }}>
+              <span style={{ color: "#e06c75", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700 }}>REMOVE the temporary raise before proceeding.</span>
+            </div>
+          </DebuggerExercise>
+
+          <Checkbox id="q5_done" label="Q5 complete — tuple confirmed, from_dict crash triggered, temporary raise removed" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ Q6 — Observations ═══ */}
+        <div ref={regRef("q6")}>
+          <H2>Q6 — Observe Before You Assert</H2>
+          <P>Run every curl in sequence. Read Redis after each one. These observations become your test assertions.</P>
+
+          {[
+            { id: "SM001", cmd: `curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447700000000" \\\n  -d "Body=hello" \\\n  -d "ProfileName=Test User" \\\n  -d "MessageSid=SM001"`, check: `redis-cli get "whatsapp:+447700000000" | python3 -m json.tool | grep '"state"'`, label: "SM001 — brand new customer" },
+            { id: "SM002", cmd: `curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447700000000" \\\n  -d "Body=salesid1" \\\n  -d "ProfileName=Test User" \\\n  -d "MessageSid=SM002"`, check: `redis-cli get "whatsapp:+447700000000" | python3 -m json.tool | grep '"state"'`, label: "SM002 — Sales Inquiries button" },
+            { id: "SM003", cmd: `curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447700000000" \\\n  -d "Body=new_inquiry" \\\n  -d "ProfileName=Test User" \\\n  -d "MessageSid=SM003"`, check: `redis-cli get "whatsapp:+447700000000" | python3 -m json.tool | grep '"current_reference_id"\\|"state"'`, label: "SM003 — New Sales Inquiry button" },
+            { id: "SM004", cmd: `curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447700000000" \\\n  -d "Body=I need 3 x 452-0427" \\\n  -d "ProfileName=Test User" \\\n  -d "MessageSid=SM004"`, check: `redis-cli get "whatsapp:+447700000000" | python3 -m json.tool | grep '"state"'`, label: "SM004 — parts inquiry (Claude fires)" },
+            { id: "SM005", cmd: `curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447700000000" \\\n  -d "Body=this is not a valid command" \\\n  -d "ProfileName=Test User" \\\n  -d "MessageSid=SM005"`, check: null, label: "SM005 — unknown text" },
+          ].map(({ id, cmd, check, label }) => (
+            <Collapsible key={id} title={label} accent="#56b6c2" icon="▸">
+              <CodeBlock title={`Send ${id}`} code={cmd} />
+              {check && <CodeBlock title="Check Redis" code={check} />}
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#56b6c2", marginBottom: 4 }}>
+                  After {id} — fsm_state.state and observations:
+                </div>
+                <AnswerField id={`q6_${id}`} placeholder={`State after ${id}...`} checks={checks} setChecks={setChecks} />
+              </div>
+              <Checkbox id={`q6_${id}_done`} label={`${id} run and recorded`} checks={checks} setChecks={setChecks} />
+            </Collapsible>
+          ))}
+
+          <H3>Record unexpected behaviour</H3>
+          <AnswerField id="q6_unexpected" placeholder="One thing you did not expect..." checks={checks} setChecks={setChecks} multiline />
+
+          <InterviewDialog
+            question="SM005 behaves differently depending on whether SM003 already ran. Name the guide pattern that describes this behaviour."
+            hint="PAT-x — the same input producing different outputs depending on state."
+          />
+          <AnswerField id="q6_defend" placeholder="Pattern label and explanation..." checks={checks} setChecks={setChecks} multiline />
+
+          <DebuggerExercise title="Q6: The Four Concern Breakpoints">
+            <P>Set breakpoints at <strong style={{ color: "#d7dae0" }}>all four simultaneously</strong>:</P>
+            <CodeBlock lang="python" title="Four concerns to observe" code={`# CONCERN 1 — Session load\nuser_session = session_repo.get_session(input_data["from_number"])\n\n# CONCERN 2 — FSM transition\nfsm.transition_to(State.SALES_INQUIRIES)\n\n# CONCERN 3 — AI call\nmessage = anthropic_client.messages.create(...)\n\n# CONCERN 4 — Twilio dispatch\nclient.messages.create(from_=f"whatsapp:{TWILIO_PHONE_NUMBER}", ...)`} />
+
+            {[
+              { id: "q6d_c1", q: "At Concern 1 — fsm.state and inquiry_in_progress:" },
+              { id: "q6d_c2_before", q: "At Concern 2 — fsm.state BEFORE transition:" },
+              { id: "q6d_c2_after", q: "At Concern 2 — fsm.state AFTER transition:" },
+              { id: "q6d_c2_redis", q: "Is Redis updated yet at Concern 2? Why not?" },
+              { id: "q6d_c3", q: "At Concern 3 — how many ic() calls fire before anthropic_client?" },
+              { id: "q6d_c4", q: "At Concern 4 — is current_reference_id non-null?" },
+              { id: "q6d_rw", q: "Which concern reads from Redis? Which writes? How many write calls total?" },
+              { id: "q6d_both", q: "Is there a concern that both reads AND writes? SOLID label:" },
+            ].map(({ id, q }) => (
+              <div key={id} style={{ marginBottom: 8 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e5c07b", marginBottom: 4 }}>{q}</div>
+                <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+              </div>
+            ))}
+          </DebuggerExercise>
+
+          <Checkbox id="q6_done" label="Q6 complete — all five curls run, Redis recorded, four-concern breakpoints set" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ Q7 — Production Failure ═══ */}
+        <div ref={regRef("q7")}>
+          <H2>Q7 — Single Biggest Production Concern</H2>
+
+          <InterviewDialog
+            question="What is your single biggest production concern? Classify → blast radius → detection signal → fix pattern."
+            context="The previous refactor fixed the architecture but not this concern. Explain why structural correctness alone does not resolve it."
+          />
+
+          {[
+            { id: "q7_scenario", q: "Scenario:" },
+            { id: "q7_impact", q: "Impact (how many customers, what they experience):" },
+            { id: "q7_detection", q: "Detection signal in current logs (given only print() and ic()):" },
+            { id: "q7_fix", q: "Fix pattern (guide label):" },
+          ].map(({ id, q }) => (
+            <div key={id} style={{ marginBottom: 8 }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83", marginBottom: 4 }}>{q}</div>
+              <AnswerField id={id} placeholder="..." checks={checks} setChecks={setChecks} />
+            </div>
+          ))}
+
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#e06c75", marginBottom: 4 }}>DEFEND YOUR CHOICE:</div>
+            <AnswerField id="q7_defend" placeholder="Why structural correctness alone doesn't fix this..." checks={checks} setChecks={setChecks} multiline />
+          </div>
+
+          <DebuggerExercise title="Q7: Trigger Your Chosen Failure Mode">
+            <P>Choose one scenario and trigger it in the debugger. Document what you observe.</P>
+
+            <Collapsible title="If: Synchronous Redis blocking" accent="#e5c07b">
+              <P>Set a breakpoint on <code style={{ color: "#61afef" }}>session_repo.get_session(...)</code>. Send a message. While paused, send a second curl from a different number.</P>
+              <AnswerField id="q7d_redis" placeholder="Did the second request respond before F9? What the customer experiences..." checks={checks} setChecks={setChecks} multiline />
+            </Collapsible>
+
+            <Collapsible title="If: State.ERROR bug" accent="#e5c07b">
+              <P>Use the Q5 debugger exercise. Document the Redis state after the bug fires.</P>
+              <AnswerField id="q7d_error" placeholder="Redis state after bug, customer stuck..." checks={checks} setChecks={setChecks} multiline />
+            </Collapsible>
+
+            <Collapsible title="If: No idempotency on Twilio retries" accent="#e5c07b">
+              <P>Re-run SM003 curl twice with identical data:</P>
+              <CodeBlock code={`curl -X POST http://localhost:8000/webhook \\\n  -d "From=whatsapp:+447700000000" \\\n  -d "Body=new_inquiry" \\\n  -d "ProfileName=Test User" \\\n  -d "MessageSid=SM003"`} />
+              <AnswerField id="q7d_idempotent" placeholder="Does reference_id change? Second interaction node?" checks={checks} setChecks={setChecks} multiline />
+            </Collapsible>
+          </DebuggerExercise>
+
+          <Checkbox id="q7_done" label="Q7 complete — chosen failure mode triggered, temporary code removed" checks={checks} setChecks={setChecks} />
+        </div>
+
+        {/* ═══ FAILURE MATRIX ═══ */}
+        <div ref={regRef("failure-matrix")}>
+          <H2>Production Failure Matrix</H2>
+          <P>Classify each scenario. The fix pattern is given — your job is to explain what happens without it.</P>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{
+              width: "100%", borderCollapse: "collapse", fontSize: 12.5,
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #2d313a" }}>
+                  {["Scenario", "Fix Pattern", "FSM Corrupted?", "Recoverable?"].map(h => (
+                    <th key={h} style={{
+                      padding: "10px 12px", textAlign: "left",
+                      color: "#636d83", fontWeight: 600, fontSize: 11,
+                    }}>{h}</th>
                   ))}
+                </tr>
+              </thead>
+              <tbody>
+                {FAILURE_SCENARIOS.map((f, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #1e2228" }}>
+                    <td style={{ padding: "10px 12px", color: "#d7dae0", maxWidth: 280 }}>{f.scenario}</td>
+                    <td style={{ padding: "10px 12px" }}><SolidBadge label={f.fix} /></td>
+                    <td style={{ padding: "10px 12px", color: f.corrupt === "?" ? "#e5c07b" : "#abb2bf" }}>{f.corrupt}</td>
+                    <td style={{ padding: "10px 12px", color: f.recoverable === "No" ? "#e06c75" : f.recoverable === "?" ? "#e5c07b" : "#98c379" }}>{f.recoverable}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ═══ TESTS LEVEL 1 ═══ */}
+        <div ref={regRef("tests-l1")}>
+          <H2>Part 2 — Level 1: Pure Functions</H2>
+          <P>These functions are in <code style={{ color: "#61afef" }}>app/main.py</code> today. Test them here. When the refactor moves them, the tests travel unchanged.</P>
+
+          <div style={{
+            background: "#98c3790a", border: "1px solid #98c37922",
+            borderRadius: 8, padding: "12px 16px", margin: "14px 0",
+          }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#98c379", fontWeight: 700 }}>
+              RULE: </span>
+            <span style={{ fontSize: 13, color: "#abb2bf" }}>
+              Test current behaviour — not ideal behaviour. If the system does something wrong but consistently, that is your assertion. No <code style={{ color: "#e06c75" }}>assert_called_with</code>. No <code style={{ color: "#e06c75" }}>call_count</code>.
+            </span>
+          </div>
+
+          <CodeBlock title="Pre-Prompt Gate — write this at the top of every test" lang="python" code={`# CAT-x:     (e.g., CAT-8 Computation)\n# OOP/SOLID: (e.g., SOLID-SRP violation — function does both computation and formatting)\n# Template:  (e.g., A.1 Pure Function)`} />
+
+          {PURE_FUNCTIONS.map((f, i) => (
+            <Collapsible key={i} title={f.fn} accent={CAT_DEFS[f.cat]?.color || "#61afef"} icon="fn">
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                <CatBadge cat={f.cat} />
+                <TemplateBadge tmpl={f.template} />
+              </div>
+              <div style={{ fontSize: 12.5, color: "#abb2bf", lineHeight: 1.6 }}>
+                <strong style={{ color: "#d7dae0" }}>Edge cases: </strong>{f.edges}
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <Checkbox id={`l1_${f.fn}`} label={`${f.fn} — tests written with edge cases`} checks={checks} setChecks={setChecks} />
+              </div>
+            </Collapsible>
+          ))}
+        </div>
+
+        {/* ═══ TESTS LEVEL 2 ═══ */}
+        <div ref={regRef("tests-l2")}>
+          <H2>Part 2 — Level 2: FSM State Transitions</H2>
+          <P>Test <code style={{ color: "#61afef" }}>WhatsAppFSM</code> from <code style={{ color: "#61afef" }}>app/fsm.py</code> directly. No HTTP. No Redis. No Twilio.</P>
+
+          {FSM_TESTS.map((t, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "flex-start", gap: 12,
+              padding: "10px 0", borderBottom: i < FSM_TESTS.length - 1 ? "1px solid #1e2228" : "none",
+            }}>
+              <Checkbox id={`l2_${i}`} label="" checks={checks} setChecks={setChecks} />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: "#d7dae0", fontWeight: 600 }}>{t.test}</span>
+                  <TemplateBadge tmpl={t.template} />
+                  <SolidBadge label={t.label} />
+                </div>
+                <div style={{ fontSize: 12, color: "#636d83", lineHeight: 1.5 }}>{t.assertion}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ═══ TESTS LEVEL 3 ═══ */}
+        <div ref={regRef("tests-l3")}>
+          <H2>Part 2 — Level 3: Webhook Behaviour</H2>
+          <P>Functional tests that hit the webhook endpoint. Assert from the outside.</P>
+
+          <Collapsible title="conftest.py — fixtures" accent="#c678dd" defaultOpen={false}>
+            <CodeBlock title="tests/functional/conftest.py" lang="python" code={`import json\nimport pytest\nimport redis\nfrom fastapi.testclient import TestClient\nfrom app.main import app, session_repo, initialize_user_session\n\nTEST_NUMBER = "whatsapp:+447700000000"\n_redis = redis.StrictRedis(host="localhost", port=6379, db=0, decode_responses=True)\n\n@pytest.fixture(autouse=True)\ndef clean_redis():\n    _redis.delete(TEST_NUMBER)\n    yield\n    _redis.delete(TEST_NUMBER)\n\n@pytest.fixture\ndef client():\n    return TestClient(app)\n\n@pytest.fixture\ndef mock_twilio(monkeypatch):\n    sent = []\n    def fake_create(**kwargs):\n        sent.append(kwargs)\n        return type("Msg", (), {"sid": "SM_test_001"})()\n    monkeypatch.setattr("app.main.client.messages.create", fake_create)\n    return sent\n\n@pytest.fixture\ndef mock_claude(monkeypatch):\n    monkeypatch.setattr(\n        "app.main.anthropic_client.messages.create",\n        lambda **kwargs: type("Resp", (), {\n            "content": [type("C", (), {\n                "text": "<response>3 x 452-0427 confirmed.</response>"\n            })()]\n        })()\n    )`} />
+          </Collapsible>
+
+          <div style={{
+            background: "#56b6c20a", border: "1px solid #56b6c222",
+            borderRadius: 8, padding: "12px 16px", margin: "14px 0",
+          }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#56b6c2", fontWeight: 700 }}>
+              ASSERT IN EVERY WEBHOOK TEST: </span>
+            <span style={{ fontSize: 12.5, color: "#abb2bf" }}>
+              response.status_code == 200 · Redis parseable after every call · mock_twilio count + to field verified · <strong style={{ color: "#d7dae0" }}>assert the absence</strong> when no message should fire
+            </span>
+          </div>
+
+          {WEBHOOK_SCENARIOS.map((s, i) => (
+            <div key={i} style={{
+              background: "#141820", border: "1px solid #2d313a",
+              borderRadius: 8, padding: "14px", margin: "8px 0",
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <Checkbox id={`l3_${i}`} label="" checks={checks} setChecks={setChecks} />
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 13,
+                    color: "#d7dae0", fontWeight: 600, marginBottom: 6,
+                  }}>{s.scenario}</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                    <span style={{
+                      background: "#21252b", padding: "2px 8px", borderRadius: 4,
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83",
+                    }}>seed: {s.seed}</span>
+                    <span style={{
+                      background: "#21252b", padding: "2px 8px", borderRadius: 4,
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#56b6c2",
+                    }}>{s.input}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#abb2bf", lineHeight: 1.6 }}>{s.assertions}</div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
+
+          <TemplateBadge tmpl="B.1.9" />
+          <span style={{ fontSize: 12, color: "#636d83", marginLeft: 8 }}>All scenarios use the Orchestration template</span>
         </div>
-      </div>
+
+        {/* ═══ COMPLETION CHECKLIST ═══ */}
+        <div ref={regRef("checklist")}>
+          <H2>Completion Checklist</H2>
+
+          <H3>Setup</H3>
+          <Checkbox id="final_redis" label="redis-cli ping returns PONG" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_debug" label="PyCharm debug configuration created; Uvicorn running confirmed" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_curl" label="Setup curl returns HTTP 200; Redis key exists" checks={checks} setChecks={setChecks} />
+
+          <H3>Discovery Phase</H3>
+          <Checkbox id="final_q1" label="Q1 — six operations named; CAT-x and SOLID label written; debugger stepped through each" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_q2" label="Q2 — three Redis clients found; inspect.iscoroutinefunction run; concurrent curl observed" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_q3" label="Q3 — all .keys() calls counted; scan_iter occurrences confirmed" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_q4" label="Q4 — @handle_whatsapp_errors grep run; error path triggered; temporary raise removed" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_q5" label="Q5 — State.ERROR tuple confirmed; from_dict crash path triggered; temporary raise removed" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_q6" label="Q6 — all five curl commands run; Redis output recorded; four-concern breakpoints set" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_q7" label="Q7 — chosen failure mode triggered; temporary code removed" checks={checks} setChecks={setChecks} />
+
+          <H3>Defend Phase (cannot be skipped)</H3>
+          <Checkbox id="final_defend1" label="Every Q has a DEFEND block completed" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_defend2" label="Every test has the three-line CAT-x / OOP/SOLID / Template comment" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_defend3" label="No test uses assert_called_with, call_count, or argument shape assertions" checks={checks} setChecks={setChecks} />
+
+          <H3>Testing Phase</H3>
+          <Checkbox id="final_l1" label="tests/unit/ — all six pure functions covered with edge cases; A.1 template used" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_l2" label="tests/integration/ — all FSM transitions; State.ERROR bug documented as characterization" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_l3_conftest" label="tests/functional/conftest.py — fixtures created; scope='function' on all mutable fixtures" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_l3_scenarios" label="All eight webhook scenarios written; absence of mock_twilio asserted where applicable" checks={checks} setChecks={setChecks} />
+          <Checkbox id="final_l3_green" label="All tests pass against the current monolith" checks={checks} setChecks={setChecks} />
+
+          {/* ── KEY TAKEAWAYS ── */}
+          <div style={{
+            marginTop: 32, background: "#141820", border: "1px solid #2d313a",
+            borderRadius: 8, padding: "20px 24px",
+          }}>
+            <div style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: 17, fontWeight: 700,
+              color: "#d7dae0", marginBottom: 16,
+            }}>Key Takeaways</div>
+            {[
+              { icon: "—", text: "Name the category before writing the method. CAT-6 orchestrating CAT-3 commands is correct. CAT-6 directly performing Redis reads/writes is SOLID-SRP." },
+              { icon: "—", text: "The debugger is not optional. You cannot characterize behaviour you have not observed." },
+              { icon: "—", text: "DEFEND every classification. If you cannot justify the label in one sentence, you are not ready to test." },
+              { icon: "!", text: "State.ERROR is a live production bug. Fix it before anything else in the refactor." },
+              { icon: "!", text: "Three Redis clients is a contamination graph, not three architectural choices." },
+              { icon: "!", text: "Synchronous Redis in async handlers is the performance pathology the previous refactor failed to fix." },
+              { icon: "—", text: "Test real behaviour, not ideal behaviour. If the bug is consistent, characterize it." },
+              { icon: "—", text: "Behavioural tests survive restructuring. Structural tests break when wiring moves." },
+            ].map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                <span style={{
+                  fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, minWidth: 16,
+                  color: t.icon === "!" ? "#e06c75" : "#636d83",
+                }}>{t.icon}</span>
+                <span style={{ fontSize: 13, color: "#abb2bf", lineHeight: 1.6 }}>{t.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* ── WHAT'S NEXT ── */}
+          <div style={{
+            marginTop: 24, background: "#61afef08", border: "1px solid #61afef22",
+            borderRadius: 8, padding: "20px 24px",
+          }}>
+            <div style={{
+              fontFamily: "'Outfit', sans-serif", fontSize: 17, fontWeight: 700,
+              color: "#61afef", marginBottom: 12,
+            }}>What's Next → Module 02: Extraction Strategy</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <tbody>
+                  {[
+                    ["redis.StrictRedis → redis.asyncio.Redis", "app/infrastructure/redis.py", "SOLID-DIP, CONC-3"],
+                    ["session_repo.get_session / save_session", "app/repositories/session.py", "PRT-2 Repository"],
+                    ["process_with_ai() + Claude call", "app/services/ai.py", "SOLID-SRP"],
+                    ["All client.messages.create() calls", "app/services/message.py", "SOLID-SRP"],
+                    ["whatsapp_webhook() → thin orchestrator", "app/api/routes/webhook.py", "CAT-6, SOLID-SRP"],
+                    ["All .keys() calls", "scan_iter throughout", "CONC-3"],
+                    ["ic() calls", "structlog", "LOG-1"],
+                    ["TEMP_IMAGE_FOLDER hardcoded path", "app/config.py env vars", "CFG-1"],
+                  ].map(([what, target, label], i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #1e2228" }}>
+                      <td style={{ padding: "8px 10px", color: "#d7dae0", fontFamily: "'IBM Plex Mono', monospace" }}>{what}</td>
+                      <td style={{ padding: "8px 10px", color: "#636d83" }}>{target}</td>
+                      <td style={{ padding: "8px 10px" }}><SolidBadge label={label} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
