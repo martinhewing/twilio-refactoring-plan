@@ -59,35 +59,450 @@ const FAILURE_SCENARIOS = [
 ];
 
 const PURE_FUNCTIONS = [
-  { fn: "generate_departmental_reference_id", cat: "CAT-4", template: "B.1.1", edges: "sal_, adm_, log_ prefixes; two calls differ; missing team_type fallback" },
-  { fn: "map_country_code_to_currency", cat: "CAT-1", template: "A.1", edges: "+44→GBP, +1→USD, +49→EUR, whatsapp: prefix stripped, unknown→USD" },
-  { fn: "extract_part_qty_pairs", cat: "CAT-8", template: "A.1", edges: '"3 x 452-0427", "2x1234-56", "no parts", "" — assert tuple contents' },
-  { fn: "extract_department_transfer", cat: "CAT-8", template: "A.1", edges: '"speak to sales team", "transfer to admin", "logistics", "no transfer"' },
-  { fn: "is_button_press", cat: "CAT-1", template: "A.1", edges: "every string in ALL_BUTTONS; one that is not; case sensitivity" },
-  { fn: "normalize_whitespace", cat: "CAT-8", template: "A.1", edges: "tabs, multiple spaces, leading/trailing, None" },
+  { fn: "generate_departmental_reference_id", cat: "CAT-4", template: "B.1.1", edges: "sal_, adm_, log_ prefixes; two calls differ; missing team_type fallback",
+    pseudo: `# CAT-x:     CAT-4 Factory — creates and returns a new reference ID string
+# OOP/SOLID: N/A — pure factory function, no class
+# Template:  B.1.1 Constructor/Factory — verify returned object, no side effects
+# Debug:     FT-2 if prefix missing, FT-1 if format wrong
+
+class TestGenerateDepartmentalReferenceId:
+    """B.1.1 Factory: returns new reference ID string."""
+
+    @pytest.mark.parametrize("team_type,expected_prefix", [
+        ("sales", "sal_"),
+        ("admin", "adm_"),
+        ("logistics", "log_"),
+    ], ids=["sales_prefix", "admin_prefix", "logistics_prefix"])
+    def test_prefix_matches_team_type(self, team_type, expected_prefix):
+        """Contract: reference ID starts with team-specific prefix."""
+        session = {"team_type": team_type}
+        # ACT
+        ref_id = generate_departmental_reference_id(session)
+        # ASSERT — prefix correct
+        assert ref_id.startswith(expected_prefix)
+
+    def test_two_calls_produce_different_ids(self):
+        """Contract: Factory is non-deterministic — each call is unique."""
+        session = {"team_type": "sales"}
+        # ACT
+        ref_1 = generate_departmental_reference_id(session)
+        ref_2 = generate_departmental_reference_id(session)
+        # ASSERT — uniqueness
+        assert ref_1 != ref_2
+
+    def test_missing_team_type_fallback(self):
+        """Edge: What happens with empty/missing team_type?"""
+        session = {}
+        # ACT — observe current behaviour
+        # TODO: Does it raise KeyError? Default to "sal_"? Document it.
+        ref_id = generate_departmental_reference_id(session)
+        # ASSERT — characterize the actual fallback` },
+  { fn: "map_country_code_to_currency", cat: "CAT-1", template: "A.1", edges: "+44→GBP, +1→USD, +49→EUR, whatsapp: prefix stripped, unknown→USD",
+    pseudo: `# CAT-x:     CAT-1 Query — returns data, no side effects
+# OOP/SOLID: N/A — pure function
+# Template:  A.1 Pure Function — parametrize inputs, assert determinism
+# Debug:     FT-1 if wrong currency returned
+
+class TestMapCountryCodeToCurrency:
+    """A.1 Pure function: deterministic, no side effects."""
+
+    @pytest.mark.parametrize("from_number,expected", [
+        ("whatsapp:+447700000000", "GBP"),   # UK
+        ("whatsapp:+12025551234", "USD"),     # US
+        ("whatsapp:+4915112345678", "EUR"),   # Germany
+    ], ids=["uk_gbp", "us_usd", "de_eur"])
+    def test_known_country_codes(self, from_number, expected):
+        """Contract: known country code → correct currency."""
+        result_1 = map_country_code_to_currency(from_number)
+        result_2 = map_country_code_to_currency(from_number)
+        assert result_1 == expected
+        assert result_1 == result_2  # Idempotence
+
+    def test_unknown_country_code_defaults_to_usd(self):
+        """Edge: unrecognized prefix → fallback currency."""
+        result = map_country_code_to_currency("whatsapp:+99912345")
+        assert result == "USD"  # TODO: verify actual fallback
+
+    def test_whatsapp_prefix_stripped(self):
+        """Edge: function handles 'whatsapp:' prefix correctly."""
+        # ACT — with and without prefix
+        # TODO: Does it work without the prefix? Document.` },
+  { fn: "extract_part_qty_pairs", cat: "CAT-8", template: "A.1", edges: '"3 x 452-0427", "2x1234-56", "no parts", "" — assert tuple contents',
+    pseudo: `# CAT-x:     CAT-8 Computation — pure calculation, no IO, no state
+# OOP/SOLID: N/A — pure function
+# Template:  A.1 Pure Function — parametrize inputs, assert return structure
+# Debug:     FT-1 if wrong pairs extracted
+
+class TestExtractPartQtyPairs:
+    """A.1 Pure computation: text → list of {quantity, part number} dicts."""
+
+    @pytest.mark.parametrize("text,expected", [
+        ("3 x 452-0427", [{"quantity": 3, "part number": "452-0427"}]),
+        ("2x1234-56", [{"quantity": 2, "part number": "1234-56"}]),
+        ("no parts here", []),
+        ("", []),
+    ], ids=["qty_x_part", "no_space", "no_match", "empty_string"])
+    def test_extraction_patterns(self, text, expected):
+        """Contract: extracts (qty, part) pairs from messy input."""
+        result = extract_part_qty_pairs_customer(text)
+        assert result == expected
+
+    def test_multiple_pairs_in_one_string(self):
+        """Edge: multiple parts in single message."""
+        text = "I need 3 x 452-0427 and 1 x 789-1234"
+        result = extract_part_qty_pairs_customer(text)
+        assert len(result) == 2
+        # ASSERT — each pair has correct quantity and part number` },
+  { fn: "extract_department_transfer", cat: "CAT-8", template: "A.1", edges: '"speak to sales team", "transfer to admin", "logistics", "no transfer"',
+    pseudo: `# CAT-x:     CAT-8 Computation — text analysis, no side effects
+# OOP/SOLID: N/A — pure function
+# Template:  A.1 Pure Function — parametrize transfer phrases
+# Debug:     FT-1 if wrong department extracted
+
+class TestExtractDepartmentTransfer:
+    """A.1 Pure computation: message text → department or None."""
+
+    @pytest.mark.parametrize("text,expected", [
+        ("speak to sales team", "sales"),
+        ("transfer to admin", "admin"),
+        ("logistics", "logistics"),
+        ("no transfer intent here", None),
+    ], ids=["sales", "admin", "logistics", "no_match"])
+    def test_department_extraction(self, text, expected):
+        """Contract: recognized phrases → department string."""
+        result = extract_department_transfer(text)
+        assert result == expected  # TODO: verify actual return type` },
+  { fn: "is_button_press", cat: "CAT-1", template: "A.1", edges: "every string in ALL_BUTTONS; one that is not; case sensitivity",
+    pseudo: `# CAT-x:     CAT-1 Query — returns bool, no side effects
+# OOP/SOLID: N/A — pure function
+# Template:  A.1 Pure Function — parametrize ALL_BUTTONS membership
+# Debug:     FT-1 if wrong boolean returned
+
+class TestIsButtonPress:
+    """A.1 Pure query: is this body text a known button ID?"""
+
+    @pytest.mark.parametrize("body", [
+        "salesid1", "new_inquiry", "admin_support",
+        # TODO: add every string from ALL_BUTTONS
+    ])
+    def test_known_buttons_return_true(self, body):
+        """Contract: every ALL_BUTTONS member → True."""
+        assert is_button_press(body) is True
+
+    def test_unknown_text_returns_false(self):
+        """Contract: non-button text → False."""
+        assert is_button_press("hello world") is False
+
+    def test_case_sensitivity(self):
+        """Edge: is matching case-sensitive or insensitive?"""
+        # ACT — uppercase variant of a known button
+        # TODO: observe and document actual behaviour` },
+  { fn: "normalize_whitespace", cat: "CAT-8", template: "A.1", edges: "tabs, multiple spaces, leading/trailing, None",
+    pseudo: `# CAT-x:     CAT-8 Computation — string cleanup, no side effects
+# OOP/SOLID: N/A — pure function
+# Template:  A.1 Pure Function — parametrize whitespace variants
+# Debug:     FT-1 if whitespace not normalized
+
+class TestNormalizeWhitespace:
+    """A.1 Pure computation: messy string → single-spaced, trimmed."""
+
+    @pytest.mark.parametrize("input_text,expected", [
+        ("  hello  world  ", "hello world"),
+        ("tab\\there", "tab here"),
+        ("multiple   spaces", "multiple spaces"),
+        ("already clean", "already clean"),
+    ], ids=["leading_trailing", "tabs", "multiple", "clean"])
+    def test_whitespace_normalization(self, input_text, expected):
+        """Contract: collapse whitespace, strip edges."""
+        result = normalize_whitespace(input_text)
+        assert result == expected
+
+    def test_none_input(self):
+        """Edge: None → empty string (or raises?)."""
+        result = normalize_whitespace(None)
+        assert result == ""  # TODO: verify actual behaviour` },
 ];
 
 const FSM_TESTS = [
-  { test: "MAIN_MENU → SALES_INQUIRIES", template: "B.1.4", assertion: "state before=MAIN_MENU, after=SALES_INQUIRIES, history+1", label: "PAT-8" },
-  { test: "MAIN_MENU → ADMIN_SUPPORT", template: "B.1.4", assertion: "same pattern", label: "PAT-8" },
-  { test: "MAIN_MENU → TRACK_ORDER", template: "B.1.4", assertion: "same pattern", label: "PAT-8" },
-  { test: "SALES → NEW_SALES_INQUIRY", template: "B.1.4", assertion: "state change + history from/to values", label: "PAT-8" },
-  { test: "Invalid transition raises", template: "A.1", assertion: "transition_to(QUOTE_SENT) from MAIN_MENU raises ValueError", label: "CAT-5" },
-  { test: "State.ERROR tuple bug documented", template: "A.1", assertion: 'assert State.ERROR.value == ("Error",) — IS the bug', label: "BUG" },
-  { test: "to_dict() / from_dict() round-trip", template: "B.1.4+B.1.1", assertion: "all fields preserved", label: "OOP-ENCAP" },
-  { test: 'from_dict() with "state":"Error"', template: "A.1", assertion: "raises ValueError — characterization", label: "BUG" },
-  { test: "Full sales happy path", template: "B.1.9", assertion: "MAIN→SALES→NEW→AI_PROC→AI_DONE", label: "PAT-8" },
+  { test: "MAIN_MENU → SALES_INQUIRIES", template: "B.1.4", assertion: "state before=MAIN_MENU, after=SALES_INQUIRIES, history+1", label: "PAT-8",
+    pseudo: `# CAT-x:     CAT-2 Mutation — changes FSM internal state
+# OOP/SOLID: PAT-8 State Pattern — same input, different output by state
+# Template:  B.1.4 State Mutation — assert state BEFORE and AFTER
+# Debug:     FT-1 state unchanged, FT-7 wrong fixture scope
+
+def test_transition_main_menu_to_sales(self):
+    """B.1.4 Mutation: MAIN_MENU → SALES_INQUIRIES."""
+    fsm = WhatsAppFSM()
+    # ASSERT — precondition
+    assert fsm.state == State.MAIN_MENU
+    history_before = len(fsm.history)
+    # ACT
+    fsm.transition_to(State.SALES_INQUIRIES)
+    # ASSERT — postcondition
+    assert fsm.state == State.SALES_INQUIRIES
+    assert len(fsm.history) == history_before + 1` },
+  { test: "MAIN_MENU → ADMIN_SUPPORT", template: "B.1.4", assertion: "same pattern", label: "PAT-8",
+    pseudo: `def test_transition_main_menu_to_admin(self):
+    """B.1.4 Mutation: MAIN_MENU → ADMIN_SUPPORT."""
+    fsm = WhatsAppFSM()
+    assert fsm.state == State.MAIN_MENU
+    fsm.transition_to(State.ADMIN_SUPPORT)
+    assert fsm.state == State.ADMIN_SUPPORT` },
+  { test: "MAIN_MENU → TRACK_ORDER", template: "B.1.4", assertion: "same pattern", label: "PAT-8",
+    pseudo: `def test_transition_main_menu_to_track_order(self):
+    """B.1.4 Mutation: MAIN_MENU → TRACK_ORDER."""
+    fsm = WhatsAppFSM()
+    assert fsm.state == State.MAIN_MENU
+    fsm.transition_to(State.TRACK_ORDER)
+    assert fsm.state == State.TRACK_ORDER` },
+  { test: "SALES → NEW_SALES_INQUIRY", template: "B.1.4", assertion: "state change + history from/to values", label: "PAT-8",
+    pseudo: `def test_transition_sales_to_new_inquiry(self):
+    """B.1.4 Mutation: two-step transition with history verification."""
+    fsm = WhatsAppFSM()
+    # ARRANGE — navigate to SALES first
+    fsm.transition_to(State.SALES_INQUIRIES)
+    assert fsm.state == State.SALES_INQUIRIES
+    # ACT
+    fsm.transition_to(State.NEW_SALES_INQUIRY)
+    # ASSERT — state + history records from/to
+    assert fsm.state == State.NEW_SALES_INQUIRY
+    last_entry = fsm.history[-1]
+    # TODO: verify history entry contains from/to states` },
+  { test: "Invalid transition raises", template: "A.1", assertion: "transition_to(QUOTE_SENT) from MAIN_MENU raises ValueError", label: "CAT-5",
+    pseudo: `# CAT-x:     CAT-5 Validation — raises on bad input
+# Template:  A.2 Validation Testing — pytest.raises
+# Debug:     FT-3 if exception NOT raised
+
+def test_invalid_transition_raises(self):
+    """A.2 Validation: illegal state transition → ValueError."""
+    fsm = WhatsAppFSM()
+    assert fsm.state == State.MAIN_MENU
+    # ACT + ASSERT — cannot jump to QUOTE_SENT from MAIN_MENU
+    with pytest.raises(ValueError):
+        fsm.transition_to(State.QUOTE_SENT)` },
+  { test: "State.ERROR tuple bug documented", template: "A.1", assertion: 'assert State.ERROR.value == ("Error",) — IS the bug', label: "BUG",
+    pseudo: `# CAT-x:     N/A — characterization of existing bug
+# OOP/SOLID: BUG — trailing comma creates tuple, not string
+# Template:  TST-5 Characterization Test — document current (broken) behaviour
+# Debug:     This test MUST PASS against the bug. It fails after the fix.
+
+@pytest.mark.characterization
+def test_state_error_value_is_tuple_BUG(self):
+    """TST-5 Characterization: State.ERROR.value is a tuple, not a string.
+    NOTE: This documents a BUG. When fixed, this test should FAIL."""
+    # ASSERT — the bug: trailing comma makes it a tuple
+    assert State.ERROR.value == ("Error",)
+    assert isinstance(State.ERROR.value, tuple)
+    # This is NOT the desired behaviour — it IS the bug` },
+  { test: "to_dict() / from_dict() round-trip", template: "B.1.4+B.1.1", assertion: "all fields preserved", label: "OOP-ENCAP",
+    pseudo: `# CAT-x:     CAT-1 Query (to_dict) + CAT-4 Factory (from_dict)
+# OOP/SOLID: OOP-ENCAP — verify internal state survives serialization
+# Template:  B.1.4 + B.1.1 — mutate state, serialize, reconstruct, compare
+# Debug:     FT-1 if fields lost in round-trip
+
+def test_to_dict_from_dict_round_trip(self):
+    """B.1.4+B.1.1: serialize → deserialize preserves all fields."""
+    fsm = WhatsAppFSM()
+    fsm.transition_to(State.SALES_INQUIRIES)
+    # ACT — round-trip
+    data = fsm.to_dict()
+    restored = WhatsAppFSM.from_dict(data)
+    # ASSERT — every field preserved
+    assert restored.state == fsm.state
+    assert restored.history == fsm.history
+    # TODO: verify all other FSM fields` },
+  { test: 'from_dict() with "state":"Error"', template: "A.1", assertion: "raises ValueError — characterization", label: "BUG",
+    pseudo: `# CAT-x:     N/A — characterization of crash path from State.ERROR bug
+# Template:  TST-5 Characterization — document the crash
+# Debug:     FT-2 exception raised (expected for this bug)
+
+@pytest.mark.characterization
+def test_from_dict_with_error_string_raises_BUG(self):
+    """TST-5 Characterization: from_dict({"state": "Error"}) crashes.
+    This is caused by the State.ERROR tuple bug (Q5)."""
+    data = {"state": "Error", "history": []}
+    # ACT + ASSERT — State("Error") fails because no member matches
+    with pytest.raises(ValueError, match="not a valid State"):
+        WhatsAppFSM.from_dict(data)` },
+  { test: "Full sales happy path", template: "B.1.9", assertion: "MAIN→SALES→NEW→AI_PROC→AI_DONE", label: "PAT-8",
+    pseudo: `# CAT-x:     CAT-6 Orchestration — multi-step state machine traversal
+# OOP/SOLID: PAT-8 State Pattern — full workflow
+# Template:  B.1.9 Collaboration — verify complete state sequence
+# Debug:     FT-1 if any intermediate state wrong
+
+def test_full_sales_happy_path(self):
+    """B.1.9 Orchestration: complete sales flow state sequence."""
+    fsm = WhatsAppFSM()
+    # STEP 1 — enter sales
+    fsm.transition_to(State.SALES_INQUIRIES)
+    assert fsm.state == State.SALES_INQUIRIES
+    # STEP 2 — new inquiry
+    fsm.transition_to(State.NEW_SALES_INQUIRY)
+    assert fsm.state == State.NEW_SALES_INQUIRY
+    # STEP 3 — AI processing
+    fsm.transition_to(State.AI_PROCESSING)
+    assert fsm.state == State.AI_PROCESSING
+    # STEP 4 — AI done
+    fsm.transition_to(State.AI_PROCESSING_DONE)
+    assert fsm.state == State.AI_PROCESSING_DONE
+    # ASSERT — history records every transition
+    assert len(fsm.history) == 4` },
 ];
 
 const WEBHOOK_SCENARIOS = [
-  { scenario: "First message from unknown", seed: "None", input: "Body=hello", assertions: "HTTP 200; Redis key created; state=='Main Menu'; mock_twilio called once" },
-  { scenario: "salesid1 button", seed: "menu=main", input: "Body=salesid1", assertions: "HTTP 200; state=='Sales Inquiries'; sales submenu dispatched" },
-  { scenario: "new_inquiry button", seed: "menu=sales", input: "Body=new_inquiry", assertions: "HTTP 200; state=='New Sales Inquiry'; reference_id starts sal_" },
-  { scenario: "Parts inquiry + mock_claude", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200/202; AI template dispatched; requested_quotes non-empty" },
-  { scenario: "Unknown button payload", seed: "menu=main", input: "Body=notabutton", assertions: "HTTP 200; no crash; state unchanged" },
-  { scenario: "all my messages special command", seed: "any", input: "Body=all my messages", assertions: "HTTP 200; handled before menu routing; cooldown key set" },
-  { scenario: "process_with_ai raises", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200 (not 500); state not left as AI_PROCESSING" },
-  { scenario: "SM003 re-sent (Twilio retry)", seed: "menu=sales", input: "identical SM003", assertions: "HTTP 200; reference_id unchanged; no second interaction node" },
+  { scenario: "First message from unknown", seed: "None", input: "Body=hello", assertions: "HTTP 200; Redis key created; state=='Main Menu'; mock_twilio called once",
+    pseudo: `# CAT-x:     CAT-6 Orchestration — webhook coordinates session + FSM + Twilio
+# OOP/SOLID: SOLID-SRP — testing the orchestrator end-to-end
+# Template:  B.1.9 Collaboration — real Redis, monkeypatched Twilio + Claude
+# Debug:     FT-1 state wrong, FT-6 mock_twilio not called
+
+def test_first_message_creates_session(self, client, mock_twilio):
+    """B.1.9: unknown customer → session created, menu sent."""
+    # ARRANGE — Redis clean (autouse fixture)
+    # ACT
+    resp = client.post("/webhook", data={
+        "From": TEST_NUMBER, "Body": "hello",
+        "ProfileName": "Test", "MessageSid": "SM001",
+    })
+    # ASSERT — HTTP
+    assert resp.status_code == 200
+    # ASSERT — Redis key created with correct state
+    session = json.loads(_redis.get(TEST_NUMBER))
+    assert session["fsm_state"]["state"] == "Main Menu"
+    # ASSERT — Twilio sent main menu
+    assert len(mock_twilio) >= 1
+    assert mock_twilio[0]["to"] == TEST_NUMBER` },
+  { scenario: "salesid1 button", seed: "menu=main", input: "Body=salesid1", assertions: "HTTP 200; state=='Sales Inquiries'; sales submenu dispatched",
+    pseudo: `def test_sales_button_transitions_to_sales(self, client, mock_twilio):
+    """B.1.9: salesid1 from MAIN_MENU → Sales Inquiries."""
+    # ARRANGE — seed session at MAIN_MENU
+    session = initialize_user_session(TEST_NUMBER)
+    _redis.set(TEST_NUMBER, json.dumps(session))
+    # ACT
+    resp = client.post("/webhook", data={
+        "From": TEST_NUMBER, "Body": "salesid1",
+        "ProfileName": "Test", "MessageSid": "SM002",
+    })
+    # ASSERT
+    assert resp.status_code == 200
+    updated = json.loads(_redis.get(TEST_NUMBER))
+    assert updated["fsm_state"]["state"] == "Sales Inquiries"
+    assert len(mock_twilio) >= 1  # submenu dispatched` },
+  { scenario: "new_inquiry button", seed: "menu=sales", input: "Body=new_inquiry", assertions: "HTTP 200; state=='New Sales Inquiry'; reference_id starts sal_",
+    pseudo: `def test_new_inquiry_generates_reference_id(self, client, mock_twilio):
+    """B.1.9: new_inquiry from SALES → reference ID created."""
+    # ARRANGE — seed session at SALES_INQUIRIES state
+    session = initialize_user_session(TEST_NUMBER)
+    session["fsm_state"] = {"state": "Sales Inquiries", "history": []}
+    session["menu"] = "sales"
+    _redis.set(TEST_NUMBER, json.dumps(session))
+    # ACT
+    resp = client.post("/webhook", data={
+        "From": TEST_NUMBER, "Body": "new_inquiry",
+        "ProfileName": "Test", "MessageSid": "SM003",
+    })
+    # ASSERT
+    assert resp.status_code == 200
+    updated = json.loads(_redis.get(TEST_NUMBER))
+    assert updated["fsm_state"]["state"] == "New Sales Inquiry"
+    assert updated["current_reference_id"].startswith("sal_")` },
+  { scenario: "Parts inquiry + mock_claude", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200/202; AI template dispatched; requested_quotes non-empty",
+    pseudo: `def test_parts_inquiry_triggers_ai(self, client, mock_twilio, mock_claude):
+    """B.1.9: parts message → Claude API called → response dispatched."""
+    # ARRANGE — seed session at NEW_SALES_INQUIRY with inquiry_in_progress
+    session = initialize_user_session(TEST_NUMBER)
+    session["fsm_state"] = {"state": "New Sales Inquiry", "history": []}
+    session["inquiry_in_progress"] = True
+    session["current_reference_id"] = "sal_test1234"
+    _redis.set(TEST_NUMBER, json.dumps(session))
+    # ACT
+    resp = client.post("/webhook", data={
+        "From": TEST_NUMBER, "Body": "I need 3 x 452-0427",
+        "ProfileName": "Test", "MessageSid": "SM004",
+    })
+    # ASSERT — HTTP success (200 or 202)
+    assert resp.status_code in (200, 202)
+    # ASSERT — Twilio sent a response (AI output)
+    assert len(mock_twilio) >= 1` },
+  { scenario: "Unknown button payload", seed: "menu=main", input: "Body=notabutton", assertions: "HTTP 200; no crash; state unchanged",
+    pseudo: `def test_unknown_button_does_not_crash(self, client, mock_twilio):
+    """B.1.9: unrecognized text in MAIN_MENU → no crash, state preserved."""
+    # ARRANGE — seed at MAIN_MENU
+    session = initialize_user_session(TEST_NUMBER)
+    _redis.set(TEST_NUMBER, json.dumps(session))
+    state_before = session["fsm_state"]["state"]
+    # ACT
+    resp = client.post("/webhook", data={
+        "From": TEST_NUMBER, "Body": "notabutton",
+        "ProfileName": "Test", "MessageSid": "SM_UNKNOWN",
+    })
+    # ASSERT — no crash
+    assert resp.status_code == 200
+    # ASSERT — state unchanged
+    updated = json.loads(_redis.get(TEST_NUMBER))
+    assert updated["fsm_state"]["state"] == state_before` },
+  { scenario: "all my messages special command", seed: "any", input: "Body=all my messages", assertions: "HTTP 200; handled before menu routing; cooldown key set",
+    pseudo: `def test_special_command_all_my_messages(self, client, mock_twilio):
+    """B.1.9: special command handled before menu dispatch."""
+    # ARRANGE — any valid session
+    session = initialize_user_session(TEST_NUMBER)
+    _redis.set(TEST_NUMBER, json.dumps(session))
+    # ACT
+    resp = client.post("/webhook", data={
+        "From": TEST_NUMBER, "Body": "all my messages",
+        "ProfileName": "Test", "MessageSid": "SM_HISTORY",
+    })
+    # ASSERT — handled
+    assert resp.status_code == 200
+    # ASSERT — cooldown key set in Redis
+    cooldown_key = f"cooldown:all_messages:{TEST_NUMBER}"
+    assert _redis.exists(cooldown_key)` },
+  { scenario: "process_with_ai raises", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200 (not 500); state not left as AI_PROCESSING",
+    pseudo: `def test_ai_failure_does_not_leave_stuck_state(self, client, mock_twilio, monkeypatch):
+    """B.1.9: AI crash → HTTP 200 (not 500), FSM not stuck in AI_PROCESSING."""
+    # ARRANGE — seed at inquiry state + make Claude raise
+    session = initialize_user_session(TEST_NUMBER)
+    session["fsm_state"] = {"state": "New Sales Inquiry", "history": []}
+    session["inquiry_in_progress"] = True
+    session["current_reference_id"] = "sal_test1234"
+    _redis.set(TEST_NUMBER, json.dumps(session))
+    monkeypatch.setattr(
+        "app.main.anthropic_client.messages.create",
+        lambda **kw: (_ for _ in ()).throw(Exception("API timeout")),
+    )
+    # ACT
+    resp = client.post("/webhook", data={
+        "From": TEST_NUMBER, "Body": "I need 3 x 452-0427",
+        "ProfileName": "Test", "MessageSid": "SM_AI_FAIL",
+    })
+    # ASSERT — graceful, not 500
+    assert resp.status_code == 200
+    # ASSERT — state NOT left as AI_PROCESSING
+    updated = json.loads(_redis.get(TEST_NUMBER))
+    assert updated["fsm_state"]["state"] != "AI Processing"` },
+  { scenario: "SM003 re-sent (Twilio retry)", seed: "menu=sales", input: "identical SM003", assertions: "HTTP 200; reference_id unchanged; no second interaction node",
+    pseudo: `def test_twilio_retry_is_not_idempotent_BUG(self, client, mock_twilio):
+    """TST-5 Characterization: duplicate MessageSid creates duplicate state.
+    NOTE: This documents a BUG — system has no idempotency check."""
+    # ARRANGE — seed at SALES state
+    session = initialize_user_session(TEST_NUMBER)
+    session["fsm_state"] = {"state": "Sales Inquiries", "history": []}
+    session["menu"] = "sales"
+    _redis.set(TEST_NUMBER, json.dumps(session))
+    # ACT — send identical payload twice
+    data = {"From": TEST_NUMBER, "Body": "new_inquiry",
+            "ProfileName": "Test", "MessageSid": "SM003"}
+    resp_1 = client.post("/webhook", data=data)
+    after_first = json.loads(_redis.get(TEST_NUMBER))
+    ref_1 = after_first.get("current_reference_id")
+    resp_2 = client.post("/webhook", data=data)
+    after_second = json.loads(_redis.get(TEST_NUMBER))
+    ref_2 = after_second.get("current_reference_id")
+    # ASSERT — both succeed
+    assert resp_1.status_code == 200
+    assert resp_2.status_code == 200
+    # ASSERT — characterize: does reference_id change? (BUG if yes)
+    # TODO: assert ref_1 == ref_2 or document that ref_1 != ref_2` },
 ];
 
 // ═══════════════════════════════════════════════════════════════════
@@ -97,7 +512,7 @@ const WEBHOOK_SCENARIOS = [
 const M = {
   // ── Q1: whatsapp_webhook() classification ──
   q1_op1: "HTTP request parsing — extracts form data from the Starlette Request object (from_number, body, profile_name, message_sid) via get_webhook_input()",
-  q1_op2: "Session retrieval — loads or initializes the customer session from Redis via session_repo.get_session(), including JSON deserialization and default construction on KeyError",
+  q1_op2: "Session retrieval — loads or initializes the customer session from Redis via session_repo.get_session(), including JSON deserialization. When redis.get() returns None, get_session() raises ValueError, caught by get_user_session() which calls initialize_user_session() to create a default session dict",
   q1_op3: "FSM state hydration — reconstructs a WhatsAppFSM instance from the persisted dict via WhatsAppFSM.from_dict(), mapping string state values back to State enum members",
   q1_op4: "Special command routing — checks for meta-commands ('all my messages', 'reset', 'cooldown') via handle_special_commands() before FSM dispatch, short-circuiting the main flow",
   q1_op5: "Menu/state dispatch — routes to the correct handle_* function based on current FSM state (handle_main_menu_selection, handle_sales_inquiries, etc.), triggering FSM transitions",
@@ -108,7 +523,7 @@ const M = {
 
   // ── Q1 Debugger ──
   q1d_input: "Dict with keys: from_number (str, e.g. 'whatsapp:+447700000000'), body (str, 'hello'), profile_name (str, 'Test User'), message_sid (str, 'SM_SETUP_001'). from_number is already a string at this point, not bytes.",
-  q1d_session: "No — for a new customer, get_session() catches the KeyError from Redis (key does not exist) and falls into the except block, calling initialize_user_session() to create a default session dict. No ValueError is raised.",
+  q1d_session: "Yes — for a new customer, redis.get(key) returns None (not a KeyError). SessionRepository.get_session() checks if not session_data and explicitly raises ValueError(\"No session found for {key}\"). This is caught by the except ValueError: block in get_user_session(), which calls initialize_user_session() to create a default session dict.",
   q1d_fsm: "State.MAIN_MENU — the default state assigned by initialize_user_session(). The FSM is pure in-memory at this point; from_dict() only reads the dict passed to it, it does not touch Redis.",
   q1d_special: "False — 'hello' is not in the special commands set ('all my messages', 'reset', etc.), so handle_special_commands() returns False and execution continues to the main menu dispatch.",
   q1d_handle: "handle_main_menu_selection() — because fsm.state is MAIN_MENU. For the 'hello' body which is not a recognized button ID, this function sends the main menu template via Twilio.",
@@ -1229,6 +1644,7 @@ export default function Module01() {
               <div style={{ fontSize: 12.5, color: "#abb2bf", lineHeight: 1.6 }}>
                 <strong style={{ color: "#d7dae0" }}>Edge cases: </strong>{f.edges}
               </div>
+              {f.pseudo && <CodeBlock title={`${f.template} Template — ${f.fn}`} lang="python" code={f.pseudo} />}
               <div style={{ marginTop: 10 }}>
                 <Checkbox id={`l1_${f.fn}`} label={`${f.fn} — tests written with edge cases`} checks={checks} setChecks={setChecks} />
               </div>
@@ -1242,20 +1658,15 @@ export default function Module01() {
           <P>Test <code style={{ color: "#61afef" }}>WhatsAppFSM</code> from <code style={{ color: "#61afef" }}>app/fsm.py</code> directly. No HTTP. No Redis. No Twilio.</P>
 
           {FSM_TESTS.map((t, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "flex-start", gap: 12,
-              padding: "10px 0", borderBottom: i < FSM_TESTS.length - 1 ? "1px solid #1e2228" : "none",
-            }}>
-              <Checkbox id={`l2_${i}`} label="" checks={checks} setChecks={setChecks} />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: "#d7dae0", fontWeight: 600 }}>{t.test}</span>
-                  <TemplateBadge tmpl={t.template} />
-                  <SolidBadge label={t.label} />
-                </div>
-                <div style={{ fontSize: 12, color: "#636d83", lineHeight: 1.5 }}>{t.assertion}</div>
+            <Collapsible key={i} title={t.test} accent="#c678dd" icon={t.label === "BUG" ? "!" : "▸"}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                <TemplateBadge tmpl={t.template} />
+                <SolidBadge label={t.label} />
               </div>
-            </div>
+              <div style={{ fontSize: 12, color: "#636d83", lineHeight: 1.5, marginBottom: 8 }}>{t.assertion}</div>
+              {t.pseudo && <CodeBlock title={`${t.template} Template`} lang="python" code={t.pseudo} />}
+              <Checkbox id={`l2_${i}`} label={`${t.test} — test written`} checks={checks} setChecks={setChecks} />
+            </Collapsible>
           ))}
         </div>
 
@@ -1280,31 +1691,22 @@ export default function Module01() {
           </div>
 
           {WEBHOOK_SCENARIOS.map((s, i) => (
-            <div key={i} style={{
-              background: "#141820", border: "1px solid #2d313a",
-              borderRadius: 8, padding: "14px", margin: "8px 0",
-            }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <Checkbox id={`l3_${i}`} label="" checks={checks} setChecks={setChecks} />
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 13,
-                    color: "#d7dae0", fontWeight: 600, marginBottom: 6,
-                  }}>{s.scenario}</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-                    <span style={{
-                      background: "#21252b", padding: "2px 8px", borderRadius: 4,
-                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83",
-                    }}>seed: {s.seed}</span>
-                    <span style={{
-                      background: "#21252b", padding: "2px 8px", borderRadius: 4,
-                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#56b6c2",
-                    }}>{s.input}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#abb2bf", lineHeight: 1.6 }}>{s.assertions}</div>
-                </div>
+            <Collapsible key={i} title={s.scenario} accent="#56b6c2" icon="▸">
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                <span style={{
+                  background: "#21252b", padding: "2px 8px", borderRadius: 4,
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#636d83",
+                }}>seed: {s.seed}</span>
+                <span style={{
+                  background: "#21252b", padding: "2px 8px", borderRadius: 4,
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#56b6c2",
+                }}>{s.input}</span>
+                <TemplateBadge tmpl="B.1.9" />
               </div>
-            </div>
+              <div style={{ fontSize: 12, color: "#abb2bf", lineHeight: 1.6, marginBottom: 8 }}>{s.assertions}</div>
+              {s.pseudo && <CodeBlock title="B.1.9 Orchestration Template" lang="python" code={s.pseudo} />}
+              <Checkbox id={`l3_${i}`} label={`${s.scenario} — test written`} checks={checks} setChecks={setChecks} />
+            </Collapsible>
           ))}
 
           <TemplateBadge tmpl="B.1.9" />
