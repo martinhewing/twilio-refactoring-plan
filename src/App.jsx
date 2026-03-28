@@ -60,449 +60,472 @@ const FAILURE_SCENARIOS = [
 
 const PURE_FUNCTIONS = [
   { fn: "generate_departmental_reference_id", cat: "CAT-4", template: "B.1.1", edges: "sal_, adm_, log_ prefixes; two calls differ; missing team_type fallback",
-    pseudo: `# CAT-x:     CAT-4 Factory — creates and returns a new reference ID string
-# OOP/SOLID: N/A — pure factory function, no class
-# Template:  B.1.1 Constructor/Factory — verify returned object, no side effects
-# Debug:     FT-2 if prefix missing, FT-1 if format wrong
+    pseudo: `# CAT-x:     CAT-4 Factory
+# OOP/SOLID: N/A
+# Template:  B.1.1 Factory
 
-class TestGenerateDepartmentalReferenceId:
-    """B.1.1 Factory: returns new reference ID string."""
+class Test<FunctionName>:
+    """
+    B.1.1 Factory: <description>.
 
-    @pytest.mark.parametrize("team_type,expected_prefix", [
-        ("sales", "sal_"),
-        ("admin", "adm_"),
-        ("logistics", "log_"),
-    ], ids=["sales_prefix", "admin_prefix", "logistics_prefix"])
-    def test_prefix_matches_team_type(self, team_type, expected_prefix):
-        """Contract: reference ID starts with team-specific prefix."""
-        session = {"team_type": team_type}
-        # ACT
-        ref_id = generate_departmental_reference_id(session)
-        # ASSERT — prefix correct
-        assert ref_id.startswith(expected_prefix)
+    Contract:
+    - Returns <return_type> with <prefix_constraint>
+    - Non-deterministic: each call produces unique result
+    - No side effects
+    """
 
-    def test_two_calls_produce_different_ids(self):
-        """Contract: Factory is non-deterministic — each call is unique."""
-        session = {"team_type": "sales"}
-        # ACT
-        ref_1 = generate_departmental_reference_id(session)
-        ref_2 = generate_departmental_reference_id(session)
-        # ASSERT — uniqueness
-        assert ref_1 != ref_2
+    @pytest.mark.parametrize(
+        "<input_param>,<expected_constraint>",
+        [
+            # populate from TEST CASE DATA table below
+        ],
+        ids=[<test_ids_from_case_data>],
+    )
+    def test_<primary_contract>(self, <input_param>, <expected_constraint>):
+        """Contract: <function>(<session>) --> <prefixed_id>."""
+        # ARRANGE — construct <session_dict> with known <input_param>
+        # ACT     — result = <function>(<session_dict>)
+        # ASSERT  — result starts with <expected_constraint>
 
-    def test_missing_team_type_fallback(self):
-        """Edge: What happens with empty/missing team_type?"""
-        session = {}
-        # ACT — observe current behaviour
-        # TODO: Does it raise KeyError? Default to "sal_"? Document it.
-        ref_id = generate_departmental_reference_id(session)
-        # ASSERT — characterize the actual fallback` },
+    def test_<uniqueness>(self):
+        """Contract: non-deterministic — two calls differ."""
+        # ARRANGE — same <session_dict>
+        # ACT     — call <function> twice
+        # ASSERT  — result_1 != result_2
+
+    def test_<format>(self):
+        """Contract: result matches <regex_pattern>."""
+        # ARRANGE — valid <session_dict>
+        # ACT     — result = <function>(<session_dict>)
+        # ASSERT  — re.match(<pattern>, result)
+
+    def test_<edge_missing_key>(self):
+        """Edge: <missing_input> — characterize crash or fallback."""
+        # ARRANGE — <empty_or_incomplete_input>
+        # ACT + ASSERT — characterize: raises <exception>? returns <default>?`,
+    cases: [
+      { input: '{"team_type": "sales"}', expected: 'starts with "sal_"', type: "happy" },
+      { input: '{"team_type": "admin"}', expected: 'starts with "adm_"', type: "happy" },
+      { input: '{"team_type": "logistics"}', expected: 'starts with "log_"', type: "happy" },
+      { input: "call twice, same session", expected: "ref_1 ≠ ref_2", type: "uniqueness" },
+      { input: "{} (empty session)", expected: "KeyError or fallback prefix", type: "edge" },
+      { input: '{"team_type": "sales"}', expected: 'matches r"^sal_[a-f0-9]{6,}$"', type: "format" },
+    ] },
   { fn: "map_country_code_to_currency", cat: "CAT-1", template: "A.1", edges: "+44→GBP, +1→USD, +49→EUR, whatsapp: prefix stripped, unknown→USD",
-    pseudo: `# CAT-x:     CAT-1 Query — returns data, no side effects
-# OOP/SOLID: N/A — pure function
-# Template:  A.1 Pure Function — parametrize inputs, assert determinism
-# Debug:     FT-1 if wrong currency returned
+    pseudo: `# CAT-x:     CAT-1 Query
+# OOP/SOLID: N/A
+# Template:  A.1 Pure Function
 
-class TestMapCountryCodeToCurrency:
-    """A.1 Pure function: deterministic, no side effects."""
+class Test<FunctionName>:
+    """
+    A.1 Pure function: deterministic, no side effects.
 
-    @pytest.mark.parametrize("from_number,expected", [
-        ("whatsapp:+447700000000", "GBP"),   # UK
-        ("whatsapp:+12025551234", "USD"),     # US
-        ("whatsapp:+4915112345678", "EUR"),   # Germany
-    ], ids=["uk_gbp", "us_usd", "de_eur"])
-    def test_known_country_codes(self, from_number, expected):
-        """Contract: known country code → correct currency."""
-        result_1 = map_country_code_to_currency(from_number)
-        result_2 = map_country_code_to_currency(from_number)
-        assert result_1 == expected
-        assert result_1 == result_2  # Idempotence
+    Contract:
+    - Same input --> same output (determinism)
+    - No observable state mutation
+    - No external I/O
+    """
 
-    def test_unknown_country_code_defaults_to_usd(self):
-        """Edge: unrecognized prefix → fallback currency."""
-        result = map_country_code_to_currency("whatsapp:+99912345")
-        assert result == "USD"  # TODO: verify actual fallback
+    @pytest.mark.parametrize(
+        "<input_param>,<expected_output>",
+        [
+            # populate from TEST CASE DATA table below
+        ],
+        ids=[<test_ids_from_case_data>],
+    )
+    def test_<primary_contract>(self, <input_param>, <expected_output>):
+        """Contract: <function>(<input>) --> <currency_string>."""
+        # ACT
+        result_1 = <function>(<input_param>)
+        result_2 = <function>(<input_param>)
+        # ASSERT — correctness
+        assert result_1 == <expected_output>
+        # ASSERT — idempotence (A.1 determinism check)
+        assert result_1 == result_2
 
-    def test_whatsapp_prefix_stripped(self):
-        """Edge: function handles 'whatsapp:' prefix correctly."""
-        # ACT — with and without prefix
-        # TODO: Does it work without the prefix? Document.` },
+    def test_<edge_unknown_input>(self):
+        """Edge: unrecognized <input> --> <fallback_value>."""
+        # ACT     — <function>(<unrecognized_input>)
+        # ASSERT  — result == <fallback_value>`,
+    cases: [
+      { input: '"whatsapp:+447700000000"', expected: '"GBP"', type: "happy" },
+      { input: '"whatsapp:+12025551234"', expected: '"USD"', type: "happy" },
+      { input: '"whatsapp:+4915112345678"', expected: '"EUR"', type: "happy" },
+      { input: '"whatsapp:+99912345"', expected: '"USD" (fallback)', type: "edge" },
+      { input: 'same input twice', expected: "identical result both calls", type: "idempotence" },
+    ] },
   { fn: "extract_part_qty_pairs", cat: "CAT-8", template: "A.1", edges: '"3 x 452-0427", "2x1234-56", "no parts", "" — assert tuple contents',
-    pseudo: `# CAT-x:     CAT-8 Computation — pure calculation, no IO, no state
-# OOP/SOLID: N/A — pure function
-# Template:  A.1 Pure Function — parametrize inputs, assert return structure
-# Debug:     FT-1 if wrong pairs extracted
+    pseudo: `# CAT-x:     CAT-8 Computation
+# OOP/SOLID: N/A
+# Template:  A.1 Pure Function
 
-class TestExtractPartQtyPairs:
-    """A.1 Pure computation: text → list of {quantity, part number} dicts."""
+class Test<FunctionName>:
+    """
+    A.1 Pure computation: <input_type> --> <output_type>.
 
-    @pytest.mark.parametrize("text,expected", [
-        ("3 x 452-0427", [{"quantity": 3, "part number": "452-0427"}]),
-        ("2x1234-56", [{"quantity": 2, "part number": "1234-56"}]),
-        ("no parts here", []),
-        ("", []),
-    ], ids=["qty_x_part", "no_space", "no_match", "empty_string"])
-    def test_extraction_patterns(self, text, expected):
-        """Contract: extracts (qty, part) pairs from messy input."""
-        result = extract_part_qty_pairs_customer(text)
-        assert result == expected
+    Contract:
+    - Deterministic
+    - Returns list of dicts with <key_1> and <key_2>
+    """
 
-    def test_multiple_pairs_in_one_string(self):
-        """Edge: multiple parts in single message."""
-        text = "I need 3 x 452-0427 and 1 x 789-1234"
-        result = extract_part_qty_pairs_customer(text)
-        assert len(result) == 2
-        # ASSERT — each pair has correct quantity and part number` },
+    @pytest.mark.parametrize(
+        "<input_param>,<expected_count>",
+        [
+            # populate from TEST CASE DATA table below
+        ],
+        ids=[<test_ids_from_case_data>],
+    )
+    def test_<count_contract>(self, <input_param>, <expected_count>):
+        """Contract: correct number of <items> extracted."""
+        # ACT     — result = <function>(<input_param>)
+        # ASSERT  — len(result) == <expected_count>
+
+    def test_<value_contract>(self):
+        """Contract: extracted <item> has correct <field_1> and <field_2>."""
+        # ACT     — result = <function>(<known_input>)
+        # ASSERT  — result[0][<key_1>] == <expected_value_1>
+        # ASSERT  — result[0][<key_2>] == <expected_value_2>
+
+    def test_<multi_match>(self):
+        """Edge: multiple <items> in single <input>."""
+        # ACT     — result = <function>(<multi_input>)
+        # ASSERT  — len(result) == <expected_multi_count>`,
+    cases: [
+      { input: '"3 x 452-0427"', expected: '[{"quantity": 3, "part number": "452-0427"}]', type: "happy" },
+      { input: '"2x1234-56789"', expected: '[{"quantity": 2, "part number": "1234-56789"}]', type: "no space" },
+      { input: '"452-0427 2"', expected: '[{"quantity": 2, "part number": "452-0427"}]', type: "reversed" },
+      { input: '"3 x 452-0427 and 1 x 789-12345"', expected: "2 pairs", type: "multi" },
+      { input: '"no parts here"', expected: "[]", type: "no match" },
+      { input: '""', expected: "[]", type: "empty" },
+    ] },
   { fn: "extract_department_transfer", cat: "CAT-8", template: "A.1", edges: '"speak to sales team", "transfer to admin", "logistics", "no transfer"',
-    pseudo: `# CAT-x:     CAT-8 Computation — text analysis, no side effects
-# OOP/SOLID: N/A — pure function
-# Template:  A.1 Pure Function — parametrize transfer phrases
-# Debug:     FT-1 if wrong department extracted
+    pseudo: `# CAT-x:     CAT-8 Computation
+# OOP/SOLID: N/A
+# Template:  A.1 Pure Function
 
-class TestExtractDepartmentTransfer:
-    """A.1 Pure computation: message text → department or None."""
+class Test<FunctionName>:
+    """A.1 Pure computation: <input_type> --> <output_type> or None."""
 
-    @pytest.mark.parametrize("text,expected", [
-        ("speak to sales team", "sales"),
-        ("transfer to admin", "admin"),
-        ("logistics", "logistics"),
-        ("no transfer intent here", None),
-    ], ids=["sales", "admin", "logistics", "no_match"])
-    def test_department_extraction(self, text, expected):
-        """Contract: recognized phrases → department string."""
-        result = extract_department_transfer(text)
-        assert result == expected  # TODO: verify actual return type` },
+    @pytest.mark.parametrize(
+        "<input_param>,<expected_output>",
+        [
+            # populate from TEST CASE DATA table below
+        ],
+        ids=[<test_ids_from_case_data>],
+    )
+    def test_<primary_contract>(self, <input_param>, <expected_output>):
+        """Contract: recognized <phrases> --> <department_string>."""
+        # ACT     — result = <function>(<input_param>)
+        # ASSERT  — result == <expected_output>`,
+    cases: [
+      { input: '"speak to sales team"', expected: '"sales"', type: "happy" },
+      { input: '"transfer to admin"', expected: '"admin"', type: "happy" },
+      { input: '"logistics please"', expected: '"logistics"', type: "happy" },
+      { input: '"no transfer intent here"', expected: "None", type: "no match" },
+      { input: '"hello"', expected: "None", type: "greeting" },
+    ] },
   { fn: "is_button_press", cat: "CAT-1", template: "A.1", edges: "every string in ALL_BUTTONS; one that is not; case sensitivity",
-    pseudo: `# CAT-x:     CAT-1 Query — returns bool, no side effects
-# OOP/SOLID: N/A — pure function
-# Template:  A.1 Pure Function — parametrize ALL_BUTTONS membership
-# Debug:     FT-1 if wrong boolean returned
+    pseudo: `# CAT-x:     CAT-1 Query
+# OOP/SOLID: N/A
+# Template:  A.1 Pure Function
 
-class TestIsButtonPress:
-    """A.1 Pure query: is this body text a known button ID?"""
+class Test<FunctionName>:
+    """A.1 Pure query: <input_type> --> bool."""
 
-    @pytest.mark.parametrize("body", [
-        "salesid1", "new_inquiry", "admin_support",
-        # TODO: add every string from ALL_BUTTONS
+    @pytest.mark.parametrize("<input_param>", [
+        # populate from <CONSTANT_SET>
     ])
-    def test_known_buttons_return_true(self, body):
-        """Contract: every ALL_BUTTONS member → True."""
-        assert is_button_press(body) is True
+    def test_<membership_true>(self, <input_param>):
+        """Contract: every member of <CONSTANT_SET> --> True."""
+        # ACT + ASSERT — <function>(<input_param>) is True
 
-    def test_unknown_text_returns_false(self):
-        """Contract: non-button text → False."""
-        assert is_button_press("hello world") is False
+    def test_<non_member_false>(self):
+        """Contract: <non_member_input> --> False."""
+        # ACT + ASSERT — <function>(<non_member>) is False
 
-    def test_case_sensitivity(self):
-        """Edge: is matching case-sensitive or insensitive?"""
-        # ACT — uppercase variant of a known button
-        # TODO: observe and document actual behaviour` },
+    def test_<case_sensitivity_edge>(self):
+        """Edge: characterize case-sensitive or insensitive matching."""
+        # ACT     — compare <function>(<lowercase>) vs <function>(<uppercase>)
+        # ASSERT  — document actual behaviour`,
+    cases: [
+      { input: '"salesid1"', expected: "True", type: "happy" },
+      { input: '"new_inquiry"', expected: "True", type: "happy" },
+      { input: '"admin_support"', expected: "True", type: "happy" },
+      { input: '"hello world"', expected: "False", type: "freeform" },
+      { input: '"I need 3 x 452-0427"', expected: "False", type: "parts text" },
+      { input: '"SALESID1"', expected: "True or False — characterize", type: "case edge" },
+    ] },
   { fn: "normalize_whitespace", cat: "CAT-8", template: "A.1", edges: "tabs, multiple spaces, leading/trailing, None",
-    pseudo: `# CAT-x:     CAT-8 Computation — string cleanup, no side effects
-# OOP/SOLID: N/A — pure function
-# Template:  A.1 Pure Function — parametrize whitespace variants
-# Debug:     FT-1 if whitespace not normalized
+    pseudo: `# CAT-x:     CAT-8 Computation
+# OOP/SOLID: N/A
+# Template:  A.1 Pure Function
 
-class TestNormalizeWhitespace:
-    """A.1 Pure computation: messy string → single-spaced, trimmed."""
+class Test<FunctionName>:
+    """
+    A.1 Pure computation: <input_type> --> <output_type>.
 
-    @pytest.mark.parametrize("input_text,expected", [
-        ("  hello  world  ", "hello world"),
-        ("tab\\there", "tab here"),
-        ("multiple   spaces", "multiple spaces"),
-        ("already clean", "already clean"),
-    ], ids=["leading_trailing", "tabs", "multiple", "clean"])
-    def test_whitespace_normalization(self, input_text, expected):
-        """Contract: collapse whitespace, strip edges."""
-        result = normalize_whitespace(input_text)
-        assert result == expected
+    Contract:
+    - Same input --> same output (determinism)
+    - No observable state mutation
+    """
 
-    def test_none_input(self):
-        """Edge: None → empty string (or raises?)."""
-        result = normalize_whitespace(None)
-        assert result == ""  # TODO: verify actual behaviour` },
+    @pytest.mark.parametrize(
+        "<input_param>,<expected_output>",
+        [
+            # populate from TEST CASE DATA table below
+        ],
+        ids=[<test_ids_from_case_data>],
+    )
+    def test_<primary_contract>(self, <input_param>, <expected_output>):
+        """Contract: <transformation_description>."""
+        # ACT     — result = <function>(<input_param>)
+        # ASSERT  — result == <expected_output>
+
+    def test_<idempotence>(self):
+        """A.1 determinism: calling twice --> identical result."""
+        # ACT     — call <function>(<same_input>) twice
+        # ASSERT  — result_1 == result_2`,
+    cases: [
+      { input: '"  hello  world  "', expected: '"hello world"', type: "inner + edges" },
+      { input: '"hello\tworld"', expected: '"hello world"', type: "tabs" },
+      { input: '"multiple   spaces"', expected: '"multiple spaces"', type: "multi" },
+      { input: '"already clean"', expected: '"already clean"', type: "no-op" },
+      { input: "None", expected: '""', type: "null" },
+      { input: '""', expected: '""', type: "empty" },
+    ] },
 ];
 
 const FSM_TESTS = [
   { test: "MAIN_MENU → SALES_INQUIRIES", template: "B.1.4", assertion: "state before=MAIN_MENU, after=SALES_INQUIRIES, history+1", label: "PAT-8",
-    pseudo: `# CAT-x:     CAT-2 Mutation — changes FSM internal state
-# OOP/SOLID: PAT-8 State Pattern — same input, different output by state
-# Template:  B.1.4 State Mutation — assert state BEFORE and AFTER
-# Debug:     FT-1 state unchanged, FT-7 wrong fixture scope
+    pseudo: `# CAT-x:     CAT-2 Mutation
+# OOP/SOLID: PAT-8 State Pattern
+# Template:  B.1.4 State Mutation
 
-def test_transition_main_menu_to_sales(self):
-    """B.1.4 Mutation: MAIN_MENU → SALES_INQUIRIES."""
-    fsm = WhatsAppFSM()
-    # ASSERT — precondition
-    assert fsm.state == State.MAIN_MENU
-    history_before = len(fsm.history)
-    # ACT
-    fsm.transition_to(State.SALES_INQUIRIES)
-    # ASSERT — postcondition
-    assert fsm.state == State.SALES_INQUIRIES
-    assert len(fsm.history) == history_before + 1` },
+def test_<from_state>_to_<to_state>(self):
+    """B.1.4: assert state BEFORE and AFTER transition."""
+    # ARRANGE — <fsm> = <FSMClass>() → default <initial_state>
+    # ASSERT  — precondition: <fsm>.state == <from_state>
+    #           <history_length_before> = len(<fsm>.history)
+    # ACT     — <fsm>.transition_to(<to_state>)
+    # ASSERT  — <fsm>.state == <to_state>
+    #           len(<fsm>.history) == <history_length_before> + 1`,
+    cases: [
+      { pre: "State.MAIN_MENU", action: "transition_to(State.SALES_INQUIRIES)", post: "State.SALES_INQUIRIES", history: "+1" },
+    ] },
   { test: "MAIN_MENU → ADMIN_SUPPORT", template: "B.1.4", assertion: "same pattern", label: "PAT-8",
-    pseudo: `def test_transition_main_menu_to_admin(self):
-    """B.1.4 Mutation: MAIN_MENU → ADMIN_SUPPORT."""
-    fsm = WhatsAppFSM()
-    assert fsm.state == State.MAIN_MENU
-    fsm.transition_to(State.ADMIN_SUPPORT)
-    assert fsm.state == State.ADMIN_SUPPORT` },
+    pseudo: `# Same B.1.4 pattern — only <to_state> differs
+# ARRANGE → ASSERT precondition → ACT → ASSERT postcondition`,
+    cases: [
+      { pre: "State.MAIN_MENU", action: "transition_to(State.ADMIN_SUPPORT)", post: "State.ADMIN_SUPPORT", history: "+1" },
+    ] },
   { test: "MAIN_MENU → TRACK_ORDER", template: "B.1.4", assertion: "same pattern", label: "PAT-8",
-    pseudo: `def test_transition_main_menu_to_track_order(self):
-    """B.1.4 Mutation: MAIN_MENU → TRACK_ORDER."""
-    fsm = WhatsAppFSM()
-    assert fsm.state == State.MAIN_MENU
-    fsm.transition_to(State.TRACK_ORDER)
-    assert fsm.state == State.TRACK_ORDER` },
+    pseudo: `# Same B.1.4 pattern — only <to_state> differs`,
+    cases: [
+      { pre: "State.MAIN_MENU", action: "transition_to(State.TRACK_ORDER)", post: "State.TRACK_ORDER", history: "+1" },
+    ] },
   { test: "SALES → NEW_SALES_INQUIRY", template: "B.1.4", assertion: "state change + history from/to values", label: "PAT-8",
-    pseudo: `def test_transition_sales_to_new_inquiry(self):
-    """B.1.4 Mutation: two-step transition with history verification."""
-    fsm = WhatsAppFSM()
-    # ARRANGE — navigate to SALES first
-    fsm.transition_to(State.SALES_INQUIRIES)
-    assert fsm.state == State.SALES_INQUIRIES
-    # ACT
-    fsm.transition_to(State.NEW_SALES_INQUIRY)
-    # ASSERT — state + history records from/to
-    assert fsm.state == State.NEW_SALES_INQUIRY
-    last_entry = fsm.history[-1]
-    # TODO: verify history entry contains from/to states` },
-  { test: "Invalid transition raises", template: "A.1", assertion: "transition_to(QUOTE_SENT) from MAIN_MENU raises ValueError", label: "CAT-5",
-    pseudo: `# CAT-x:     CAT-5 Validation — raises on bad input
-# Template:  A.2 Validation Testing — pytest.raises
-# Debug:     FT-3 if exception NOT raised
+    pseudo: `# B.1.4 two-step: navigate to <precondition_state> first
 
-def test_invalid_transition_raises(self):
-    """A.2 Validation: illegal state transition → ValueError."""
-    fsm = WhatsAppFSM()
-    assert fsm.state == State.MAIN_MENU
-    # ACT + ASSERT — cannot jump to QUOTE_SENT from MAIN_MENU
-    with pytest.raises(ValueError):
-        fsm.transition_to(State.QUOTE_SENT)` },
+def test_<from_state>_to_<to_state>(self):
+    """B.1.4: verify history entry records from/to states."""
+    # ARRANGE — <fsm> at <initial_state>, transition to <precondition_state>
+    # ASSERT  — precondition: <fsm>.state == <precondition_state>
+    # ACT     — <fsm>.transition_to(<to_state>)
+    # ASSERT  — <fsm>.state == <to_state>
+    #           <fsm>.history[-1]["from_state"] == <precondition_state_value>
+    #           <fsm>.history[-1]["to_state"] == <to_state_value>`,
+    cases: [
+      { pre: "State.SALES_INQUIRIES", action: "transition_to(State.NEW_SALES_INQUIRY)", post: "State.NEW_SALES_INQUIRY", history: 'from="Sales Inquiries" to="New Sales Inquiry"' },
+    ] },
+  { test: "Invalid transition raises", template: "A.1", assertion: "transition_to(QUOTE_SENT) from MAIN_MENU raises ValueError", label: "CAT-5",
+    pseudo: `# CAT-x:     CAT-5 Validation
+# Template:  A.2 Validation — pytest.raises
+
+def test_<invalid_transition>_raises(self):
+    """A.2: illegal transition --> <ExceptionType>, state unchanged."""
+    # ARRANGE — <fsm> at <from_state>
+    # ACT + ASSERT — pytest.raises(<ExceptionType>, match=<pattern>):
+    #                   <fsm>.transition_to(<illegal_target_state>)
+    # ASSERT — <fsm>.state still == <from_state> (unchanged)`,
+    cases: [
+      { pre: "State.MAIN_MENU", action: "transition_to(State.QUOTE_SENT)", post: "ValueError raised, state unchanged", history: "no entry added" },
+      { pre: "State.MAIN_MENU", action: "transition_to(State.AI_PROCESSING)", post: "ValueError raised", history: "no entry added" },
+    ] },
   { test: "State.ERROR tuple bug documented", template: "A.1", assertion: 'assert State.ERROR.value == ("Error",) — IS the bug', label: "BUG",
-    pseudo: `# CAT-x:     N/A — characterization of existing bug
-# OOP/SOLID: BUG — trailing comma creates tuple, not string
-# Template:  TST-5 Characterization Test — document current (broken) behaviour
-# Debug:     This test MUST PASS against the bug. It fails after the fix.
+    pseudo: `# Template:  TST-5 Characterization
+# This test MUST PASS against current code.
+# It FAILS after the fix is applied.
 
 @pytest.mark.characterization
-def test_state_error_value_is_tuple_BUG(self):
-    """TST-5 Characterization: State.ERROR.value is a tuple, not a string.
-    NOTE: This documents a BUG. When fixed, this test should FAIL."""
-    # ASSERT — the bug: trailing comma makes it a tuple
-    assert State.ERROR.value == ("Error",)
-    assert isinstance(State.ERROR.value, tuple)
-    # This is NOT the desired behaviour — it IS the bug` },
+def test_<enum_member>_value_is_<wrong_type>_BUG(self):
+    """TST-5: document current broken behaviour."""
+    # ASSERT — <EnumClass>.<MEMBER>.value == <wrong_value>
+    # ASSERT — isinstance(<EnumClass>.<MEMBER>.value, <wrong_type>)`,
+    cases: [
+      { input: "State.ERROR.value", expected: '("Error",) — tuple, not string', type: "BUG" },
+      { input: "isinstance(State.ERROR.value, tuple)", expected: "True", type: "BUG" },
+      { input: 'State("Error")', expected: "raises ValueError", type: "crash path" },
+    ] },
   { test: "to_dict() / from_dict() round-trip", template: "B.1.4+B.1.1", assertion: "all fields preserved", label: "OOP-ENCAP",
     pseudo: `# CAT-x:     CAT-1 Query (to_dict) + CAT-4 Factory (from_dict)
-# OOP/SOLID: OOP-ENCAP — verify internal state survives serialization
-# Template:  B.1.4 + B.1.1 — mutate state, serialize, reconstruct, compare
-# Debug:     FT-1 if fields lost in round-trip
+# Template:  B.1.4 + B.1.1
 
-def test_to_dict_from_dict_round_trip(self):
-    """B.1.4+B.1.1: serialize → deserialize preserves all fields."""
-    fsm = WhatsAppFSM()
-    fsm.transition_to(State.SALES_INQUIRIES)
-    # ACT — round-trip
-    data = fsm.to_dict()
-    restored = WhatsAppFSM.from_dict(data)
-    # ASSERT — every field preserved
-    assert restored.state == fsm.state
-    assert restored.history == fsm.history
-    # TODO: verify all other FSM fields` },
+def test_<round_trip>_preserves_all_fields(self):
+    """B.1.4+B.1.1: serialize --> deserialize preserves all fields."""
+    # ARRANGE — <fsm> with <transitions_applied> + <context_set>
+    # ACT     — <data> = <fsm>.to_dict()
+    #           <restored> = <FSMClass>.from_dict(<data>)
+    # ASSERT  — <restored>.state == <fsm>.state
+    #           <restored>.history == <fsm>.history
+    #           <restored>.context == <fsm>.context
+    #           <restored>.<field_n> == <fsm>.<field_n>`,
+    cases: [
+      { input: "fsm after 2 transitions + context", expected: "all fields identical after round-trip", type: "happy" },
+      { input: "to_dict() output", expected: 'keys: "state", "context", "history", "function_calls"', type: "shape" },
+      { input: "from_dict({})", expected: "defaults to State.MAIN_MENU", type: "defaults" },
+    ] },
   { test: 'from_dict() with "state":"Error"', template: "A.1", assertion: "raises ValueError — characterization", label: "BUG",
-    pseudo: `# CAT-x:     N/A — characterization of crash path from State.ERROR bug
-# Template:  TST-5 Characterization — document the crash
-# Debug:     FT-2 exception raised (expected for this bug)
+    pseudo: `# Template:  TST-5 Characterization — crash path
 
 @pytest.mark.characterization
-def test_from_dict_with_error_string_raises_BUG(self):
-    """TST-5 Characterization: from_dict({"state": "Error"}) crashes.
-    This is caused by the State.ERROR tuple bug (Q5)."""
-    data = {"state": "Error", "history": []}
-    # ACT + ASSERT — State("Error") fails because no member matches
-    with pytest.raises(ValueError, match="not a valid State"):
-        WhatsAppFSM.from_dict(data)` },
+def test_<from_dict>_with_<corrupt_value>_crashes_BUG(self):
+    """TST-5: <from_dict>(<corrupt_data>) --> <ExceptionType>.
+    <consequence_description>."""
+    # ARRANGE — <data_dict> mimicking what <storage> would contain
+    # ACT + ASSERT — pytest.raises(<ExceptionType>):
+    #                   <FSMClass>.from_dict(<data_dict>)`,
+    cases: [
+      { input: '{"state": "Error"}', expected: "raises ValueError", type: "BUG crash" },
+      { input: '{"state": ["Error"]}', expected: "raises ValueError (JSON round-trip variant)", type: "BUG crash" },
+    ] },
   { test: "Full sales happy path", template: "B.1.9", assertion: "MAIN→SALES→NEW→AI_PROC→AI_DONE", label: "PAT-8",
-    pseudo: `# CAT-x:     CAT-6 Orchestration — multi-step state machine traversal
-# OOP/SOLID: PAT-8 State Pattern — full workflow
-# Template:  B.1.9 Collaboration — verify complete state sequence
-# Debug:     FT-1 if any intermediate state wrong
+    pseudo: `# CAT-x:     CAT-6 Orchestration
+# Template:  B.1.9 Collaboration
 
-def test_full_sales_happy_path(self):
-    """B.1.9 Orchestration: complete sales flow state sequence."""
-    fsm = WhatsAppFSM()
-    # STEP 1 — enter sales
-    fsm.transition_to(State.SALES_INQUIRIES)
-    assert fsm.state == State.SALES_INQUIRIES
-    # STEP 2 — new inquiry
-    fsm.transition_to(State.NEW_SALES_INQUIRY)
-    assert fsm.state == State.NEW_SALES_INQUIRY
-    # STEP 3 — AI processing
-    fsm.transition_to(State.AI_PROCESSING)
-    assert fsm.state == State.AI_PROCESSING
-    # STEP 4 — AI done
-    fsm.transition_to(State.AI_PROCESSING_DONE)
-    assert fsm.state == State.AI_PROCESSING_DONE
-    # ASSERT — history records every transition
-    assert len(fsm.history) == 4` },
+def test_<full_workflow>(self):
+    """B.1.9: <state_1> --> <state_2> --> ... --> <state_n>."""
+    # ARRANGE — <fsm> at <initial_state>
+    # ACT     — transition through each <state> in sequence
+    # ASSERT  — <fsm>.state correct after EACH step
+    #           len(<fsm>.history) == <total_transitions>`,
+    cases: [
+      { step: "1", action: "transition_to(SALES_INQUIRIES)", expected: "State.SALES_INQUIRIES" },
+      { step: "2", action: "transition_to(NEW_SALES_INQUIRY)", expected: "State.NEW_SALES_INQUIRY" },
+      { step: "3", action: "transition_to(AI_PROCESSING)", expected: "State.AI_PROCESSING" },
+      { step: "4", action: "transition_to(AI_PROCESSING_DONE)", expected: "State.AI_PROCESSING_DONE" },
+    ] },
 ];
 
 const WEBHOOK_SCENARIOS = [
   { scenario: "First message from unknown", seed: "None", input: "Body=hello", assertions: "HTTP 200; Redis key created; state=='Main Menu'; mock_twilio called once",
-    pseudo: `# CAT-x:     CAT-6 Orchestration — webhook coordinates session + FSM + Twilio
-# OOP/SOLID: SOLID-SRP — testing the orchestrator end-to-end
-# Template:  B.1.9 Collaboration — real Redis, monkeypatched Twilio + Claude
-# Debug:     FT-1 state wrong, FT-6 mock_twilio not called
+    pseudo: `# CAT-x:     CAT-6 Orchestration
+# Template:  B.1.9 Collaboration — real <storage>, monkeypatched <IO>
 
-def test_first_message_creates_session(self, client, mock_twilio):
-    """B.1.9: unknown customer → session created, menu sent."""
-    # ARRANGE — Redis clean (autouse fixture)
-    # ACT
-    resp = client.post("/webhook", data={
-        "From": TEST_NUMBER, "Body": "hello",
-        "ProfileName": "Test", "MessageSid": "SM001",
-    })
-    # ASSERT — HTTP
-    assert resp.status_code == 200
-    # ASSERT — Redis key created with correct state
-    session = json.loads(_redis.get(TEST_NUMBER))
-    assert session["fsm_state"]["state"] == "Main Menu"
-    # ASSERT — Twilio sent main menu
-    assert len(mock_twilio) >= 1
-    assert mock_twilio[0]["to"] == TEST_NUMBER` },
+def test_<scenario>(self, <client>, <mock_IO>):
+    """B.1.9: <precondition_description> --> <expected_outcome>."""
+    # ARRANGE — <storage> clean (<autouse_fixture>)
+    #           assert <storage>.get(<key>) is None
+    # ACT     — <client>.post(<endpoint>, data={<webhook_payload>})
+    # ASSERT  — resp.status_code == <expected_status>
+    #           <storage> key created and parseable
+    #           <session>[<state_field>] == <expected_state>
+    #           len(<mock_IO>) >= <expected_call_count>
+    #           <mock_IO>[0][<target_field>] == <expected_target>`,
+    cases: [
+      { assert: "HTTP 200", field: "resp.status_code", expected: "200" },
+      { assert: "Redis key created", field: '_redis.get(TEST_NUMBER)', expected: "non-null JSON" },
+      { assert: "FSM state", field: 'session["fsm_state"]["state"]', expected: '"Main Menu"' },
+      { assert: "Twilio fired", field: "len(mock_twilio)", expected: "≥ 1" },
+      { assert: "Twilio target", field: 'mock_twilio[0]["to"]', expected: "TEST_NUMBER" },
+    ] },
   { scenario: "salesid1 button", seed: "menu=main", input: "Body=salesid1", assertions: "HTTP 200; state=='Sales Inquiries'; sales submenu dispatched",
-    pseudo: `def test_sales_button_transitions_to_sales(self, client, mock_twilio):
-    """B.1.9: salesid1 from MAIN_MENU → Sales Inquiries."""
-    # ARRANGE — seed session at MAIN_MENU
-    session = initialize_user_session(TEST_NUMBER)
-    _redis.set(TEST_NUMBER, json.dumps(session))
-    # ACT
-    resp = client.post("/webhook", data={
-        "From": TEST_NUMBER, "Body": "salesid1",
-        "ProfileName": "Test", "MessageSid": "SM002",
-    })
-    # ASSERT
-    assert resp.status_code == 200
-    updated = json.loads(_redis.get(TEST_NUMBER))
-    assert updated["fsm_state"]["state"] == "Sales Inquiries"
-    assert len(mock_twilio) >= 1  # submenu dispatched` },
+    pseudo: `def test_<scenario>(self, <client>, <mock_IO>):
+    """B.1.9: <button_input> from <seeded_state> --> <target_state>."""
+    # ARRANGE — seed <session> at <seeded_state>
+    # ACT     — <client>.post(<endpoint>, data={<webhook_payload>})
+    # ASSERT  — resp.status_code == <expected_status>
+    #           <session>[<state_field>] == <target_state>
+    #           len(<mock_IO>) >= <expected_call_count>`,
+    cases: [
+      { assert: "HTTP 200", field: "resp.status_code", expected: "200" },
+      { assert: "FSM state", field: 'session["fsm_state"]["state"]', expected: '"Sales Inquiries"' },
+      { assert: "Twilio fired", field: "len(mock_twilio)", expected: "≥ 1" },
+    ] },
   { scenario: "new_inquiry button", seed: "menu=sales", input: "Body=new_inquiry", assertions: "HTTP 200; state=='New Sales Inquiry'; reference_id starts sal_",
-    pseudo: `def test_new_inquiry_generates_reference_id(self, client, mock_twilio):
-    """B.1.9: new_inquiry from SALES → reference ID created."""
-    # ARRANGE — seed session at SALES_INQUIRIES state
-    session = initialize_user_session(TEST_NUMBER)
-    session["fsm_state"] = {"state": "Sales Inquiries", "history": []}
-    session["menu"] = "sales"
-    _redis.set(TEST_NUMBER, json.dumps(session))
-    # ACT
-    resp = client.post("/webhook", data={
-        "From": TEST_NUMBER, "Body": "new_inquiry",
-        "ProfileName": "Test", "MessageSid": "SM003",
-    })
-    # ASSERT
-    assert resp.status_code == 200
-    updated = json.loads(_redis.get(TEST_NUMBER))
-    assert updated["fsm_state"]["state"] == "New Sales Inquiry"
-    assert updated["current_reference_id"].startswith("sal_")` },
+    pseudo: `def test_<scenario>(self, <client>, <mock_IO>):
+    """B.1.9: <button_input> --> <generated_field> with <prefix>."""
+    # ARRANGE — seed <session> at <seeded_state>
+    # ACT     — <client>.post(<endpoint>, data={<webhook_payload>})
+    # ASSERT  — <session>[<state_field>] == <target_state>
+    #           <session>[<generated_field>].startswith(<expected_prefix>)`,
+    cases: [
+      { assert: "HTTP 200", field: "resp.status_code", expected: "200" },
+      { assert: "FSM state", field: 'session["fsm_state"]["state"]', expected: '"New Sales Inquiry"' },
+      { assert: "Ref ID prefix", field: 'session["current_reference_id"]', expected: 'startswith("sal_")' },
+    ] },
   { scenario: "Parts inquiry + mock_claude", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200/202; AI template dispatched; requested_quotes non-empty",
-    pseudo: `def test_parts_inquiry_triggers_ai(self, client, mock_twilio, mock_claude):
-    """B.1.9: parts message → Claude API called → response dispatched."""
-    # ARRANGE — seed session at NEW_SALES_INQUIRY with inquiry_in_progress
-    session = initialize_user_session(TEST_NUMBER)
-    session["fsm_state"] = {"state": "New Sales Inquiry", "history": []}
-    session["inquiry_in_progress"] = True
-    session["current_reference_id"] = "sal_test1234"
-    _redis.set(TEST_NUMBER, json.dumps(session))
-    # ACT
-    resp = client.post("/webhook", data={
-        "From": TEST_NUMBER, "Body": "I need 3 x 452-0427",
-        "ProfileName": "Test", "MessageSid": "SM004",
-    })
-    # ASSERT — HTTP success (200 or 202)
-    assert resp.status_code in (200, 202)
-    # ASSERT — Twilio sent a response (AI output)
-    assert len(mock_twilio) >= 1` },
+    pseudo: `def test_<scenario>(self, <client>, <mock_IO>, <mock_AI>):
+    """B.1.9: <input_with_data> --> <AI_service> called --> <IO> dispatches."""
+    # ARRANGE — seed <session> at <inquiry_state>
+    #           <mock_AI> fixture active
+    # ACT     — <client>.post(<endpoint>, data={<webhook_payload>})
+    # ASSERT  — resp.status_code in (<success_codes>)
+    #           len(<mock_IO>) >= <expected_call_count>`,
+    cases: [
+      { assert: "HTTP success", field: "resp.status_code", expected: "200 or 202" },
+      { assert: "Twilio fired", field: "len(mock_twilio)", expected: "≥ 1" },
+    ] },
   { scenario: "Unknown button payload", seed: "menu=main", input: "Body=notabutton", assertions: "HTTP 200; no crash; state unchanged",
-    pseudo: `def test_unknown_button_does_not_crash(self, client, mock_twilio):
-    """B.1.9: unrecognized text in MAIN_MENU → no crash, state preserved."""
-    # ARRANGE — seed at MAIN_MENU
-    session = initialize_user_session(TEST_NUMBER)
-    _redis.set(TEST_NUMBER, json.dumps(session))
-    state_before = session["fsm_state"]["state"]
-    # ACT
-    resp = client.post("/webhook", data={
-        "From": TEST_NUMBER, "Body": "notabutton",
-        "ProfileName": "Test", "MessageSid": "SM_UNKNOWN",
-    })
-    # ASSERT — no crash
-    assert resp.status_code == 200
-    # ASSERT — state unchanged
-    updated = json.loads(_redis.get(TEST_NUMBER))
-    assert updated["fsm_state"]["state"] == state_before` },
+    pseudo: `def test_<scenario>(self, <client>, <mock_IO>):
+    """B.1.9: unrecognized <input> --> no crash, <state> preserved."""
+    # ARRANGE — seed <session> at <seeded_state>
+    #           <state_before> = <seeded_state>
+    # ACT     — <client>.post(<endpoint>, data={<webhook_payload>})
+    # ASSERT  — resp.status_code == <expected_status>
+    #           <session>[<state_field>] == <state_before> (unchanged)`,
+    cases: [
+      { assert: "HTTP 200", field: "resp.status_code", expected: "200" },
+      { assert: "State unchanged", field: 'session["fsm_state"]["state"]', expected: '"Main Menu"' },
+    ] },
   { scenario: "all my messages special command", seed: "any", input: "Body=all my messages", assertions: "HTTP 200; handled before menu routing; cooldown key set",
-    pseudo: `def test_special_command_all_my_messages(self, client, mock_twilio):
-    """B.1.9: special command handled before menu dispatch."""
-    # ARRANGE — any valid session
-    session = initialize_user_session(TEST_NUMBER)
-    _redis.set(TEST_NUMBER, json.dumps(session))
-    # ACT
-    resp = client.post("/webhook", data={
-        "From": TEST_NUMBER, "Body": "all my messages",
-        "ProfileName": "Test", "MessageSid": "SM_HISTORY",
-    })
-    # ASSERT — handled
-    assert resp.status_code == 200
-    # ASSERT — cooldown key set in Redis
-    cooldown_key = f"cooldown:all_messages:{TEST_NUMBER}"
-    assert _redis.exists(cooldown_key)` },
+    pseudo: `def test_<scenario>(self, <client>, <mock_IO>):
+    """B.1.9: <special_command> --> handled before <routing>, <side_effect>."""
+    # ARRANGE — any valid <session>
+    # ACT     — <client>.post(<endpoint>, data={<webhook_payload>})
+    # ASSERT  — resp.status_code == <expected_status>
+    #           <storage>.exists(<side_effect_key>) == True`,
+    cases: [
+      { assert: "HTTP 200", field: "resp.status_code", expected: "200" },
+      { assert: "Cooldown set", field: '_redis.exists(f"cooldown:all_messages:{TEST_NUMBER}")', expected: "True" },
+    ] },
   { scenario: "process_with_ai raises", seed: "inquiry_in_progress=True", input: "Body=I need 3 x 452-0427", assertions: "HTTP 200 (not 500); state not left as AI_PROCESSING",
-    pseudo: `def test_ai_failure_does_not_leave_stuck_state(self, client, mock_twilio, monkeypatch):
-    """B.1.9: AI crash → HTTP 200 (not 500), FSM not stuck in AI_PROCESSING."""
-    # ARRANGE — seed at inquiry state + make Claude raise
-    session = initialize_user_session(TEST_NUMBER)
-    session["fsm_state"] = {"state": "New Sales Inquiry", "history": []}
-    session["inquiry_in_progress"] = True
-    session["current_reference_id"] = "sal_test1234"
-    _redis.set(TEST_NUMBER, json.dumps(session))
-    monkeypatch.setattr(
-        "app.main.anthropic_client.messages.create",
-        lambda **kw: (_ for _ in ()).throw(Exception("API timeout")),
-    )
-    # ACT
-    resp = client.post("/webhook", data={
-        "From": TEST_NUMBER, "Body": "I need 3 x 452-0427",
-        "ProfileName": "Test", "MessageSid": "SM_AI_FAIL",
-    })
-    # ASSERT — graceful, not 500
-    assert resp.status_code == 200
-    # ASSERT — state NOT left as AI_PROCESSING
-    updated = json.loads(_redis.get(TEST_NUMBER))
-    assert updated["fsm_state"]["state"] != "AI Processing"` },
+    pseudo: `def test_<scenario>(self, <client>, <mock_IO>, monkeypatch):
+    """B.1.9: <dependency> crash --> graceful <status>, <state> not stuck."""
+    # ARRANGE — seed <session> at <inquiry_state>
+    #           monkeypatch <dependency> to raise <ExceptionType>
+    # ACT     — <client>.post(<endpoint>, data={<webhook_payload>})
+    # ASSERT  — resp.status_code == <graceful_status> (NOT <error_status>)
+    #           <session>[<state_field>] != <stuck_state>`,
+    cases: [
+      { assert: "Graceful", field: "resp.status_code", expected: "200 (not 500)" },
+      { assert: "Not stuck", field: 'session["fsm_state"]["state"]', expected: '≠ "AI Processing"' },
+    ] },
   { scenario: "SM003 re-sent (Twilio retry)", seed: "menu=sales", input: "identical SM003", assertions: "HTTP 200; reference_id unchanged; no second interaction node",
-    pseudo: `def test_twilio_retry_is_not_idempotent_BUG(self, client, mock_twilio):
-    """TST-5 Characterization: duplicate MessageSid creates duplicate state.
-    NOTE: This documents a BUG — system has no idempotency check."""
-    # ARRANGE — seed at SALES state
-    session = initialize_user_session(TEST_NUMBER)
-    session["fsm_state"] = {"state": "Sales Inquiries", "history": []}
-    session["menu"] = "sales"
-    _redis.set(TEST_NUMBER, json.dumps(session))
-    # ACT — send identical payload twice
-    data = {"From": TEST_NUMBER, "Body": "new_inquiry",
-            "ProfileName": "Test", "MessageSid": "SM003"}
-    resp_1 = client.post("/webhook", data=data)
-    after_first = json.loads(_redis.get(TEST_NUMBER))
-    ref_1 = after_first.get("current_reference_id")
-    resp_2 = client.post("/webhook", data=data)
-    after_second = json.loads(_redis.get(TEST_NUMBER))
-    ref_2 = after_second.get("current_reference_id")
-    # ASSERT — both succeed
-    assert resp_1.status_code == 200
-    assert resp_2.status_code == 200
-    # ASSERT — characterize: does reference_id change? (BUG if yes)
-    # TODO: assert ref_1 == ref_2 or document that ref_1 != ref_2` },
+    pseudo: `# Template:  TST-5 Characterization — documents <idempotency_bug>
+
+@pytest.mark.characterization
+def test_<duplicate_request>_BUG(self, <client>, <mock_IO>):
+    """TST-5: duplicate <request_id> --> characterize (no dedup)."""
+    # ARRANGE — seed <session> at <seeded_state>
+    #           <payload> = {<identical_webhook_data>}
+    # ACT     — send <payload> twice via <client>.post
+    #           capture <generated_field> after each call
+    # ASSERT  — both return <expected_status>
+    #           <generated_field_1> != <generated_field_2> (BUG: no dedup)`,
+    cases: [
+      { assert: "Both succeed", field: "resp_1 + resp_2 status", expected: "200 + 200" },
+      { assert: "Ref ID stable?", field: "ref_1 vs ref_2", expected: "BUG: ref_1 ≠ ref_2 (no dedup)" },
+    ] },
 ];
 
 // ═══════════════════════════════════════════════════════════════════
@@ -933,6 +956,52 @@ function ProgressRing({ total, done }) {
         fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
         color: pct === 100 ? "#98c379" : "#636d83",
       }}>{done}/{total}</span>
+    </div>
+  );
+}
+
+function TestCaseData({ cases, title }) {
+  if (!cases || cases.length === 0) return null;
+  const keys = Object.keys(cases[0]);
+  return (
+    <div style={{
+      background: "#98c37906", border: "1px solid #98c37918",
+      borderLeft: "3px solid #98c37944", borderRadius: "0 6px 6px 0",
+      padding: "10px 14px", marginTop: 10,
+    }}>
+      <div style={{
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 9,
+        color: "#98c37966", fontWeight: 700, letterSpacing: "0.06em",
+        marginBottom: 8,
+      }}>TEST CASE DATA{title ? ` — ${title}` : ""}</div>
+      <table style={{
+        width: "100%", borderCollapse: "collapse", fontSize: 11.5,
+        fontFamily: "'JetBrains Mono', monospace",
+      }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #98c37933" }}>
+            {keys.map(k => (
+              <th key={k} style={{
+                padding: "4px 8px", textAlign: "left",
+                color: "#98c379", fontWeight: 600, fontSize: 10,
+                letterSpacing: "0.04em",
+              }}>{k.toUpperCase()}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {cases.map((c, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid #1e2228" }}>
+              {keys.map(k => (
+                <td key={k} style={{
+                  padding: "5px 8px", color: "#abb2bf", lineHeight: 1.5,
+                  verticalAlign: "top",
+                }}>{c[k]}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1645,6 +1714,7 @@ export default function Module01() {
                 <strong style={{ color: "#d7dae0" }}>Edge cases: </strong>{f.edges}
               </div>
               {f.pseudo && <CodeBlock title={`${f.template} Template — ${f.fn}`} lang="python" code={f.pseudo} />}
+              {f.cases && <TestCaseData title={f.fn} cases={f.cases} />}
               <div style={{ marginTop: 10 }}>
                 <Checkbox id={`l1_${f.fn}`} label={`${f.fn} — tests written with edge cases`} checks={checks} setChecks={setChecks} />
               </div>
@@ -1665,6 +1735,7 @@ export default function Module01() {
               </div>
               <div style={{ fontSize: 12, color: "#636d83", lineHeight: 1.5, marginBottom: 8 }}>{t.assertion}</div>
               {t.pseudo && <CodeBlock title={`${t.template} Template`} lang="python" code={t.pseudo} />}
+              {t.cases && <TestCaseData title={t.test} cases={t.cases} />}
               <Checkbox id={`l2_${i}`} label={`${t.test} — test written`} checks={checks} setChecks={setChecks} />
             </Collapsible>
           ))}
@@ -1704,7 +1775,8 @@ export default function Module01() {
                 <TemplateBadge tmpl="B.1.9" />
               </div>
               <div style={{ fontSize: 12, color: "#abb2bf", lineHeight: 1.6, marginBottom: 8 }}>{s.assertions}</div>
-              {s.pseudo && <CodeBlock title="B.1.9 Orchestration Template" lang="python" code={s.pseudo} />}
+              {s.pseudo && <CodeBlock title="B.1.9 Template" lang="python" code={s.pseudo} />}
+              {s.cases && <TestCaseData title={s.scenario} cases={s.cases} />}
               <Checkbox id={`l3_${i}`} label={`${s.scenario} — test written`} checks={checks} setChecks={setChecks} />
             </Collapsible>
           ))}
