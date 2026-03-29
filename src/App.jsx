@@ -1014,36 +1014,58 @@ export default function Module01() {
   const [activeSection, setActiveSection] = useState("orientation");
   const [checks, setChecks] = useState({});
   const [loaded, setLoaded] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
+  const checksRef = useRef(checks);
   const sectionRefs = useRef({});
   const mainRef = useRef(null);
+  checksRef.current = checks;
 
   // ── Load from persistent storage on mount ──
   useEffect(() => {
     (async () => {
       try {
         const result = await window.storage.get("module01_checks");
-        if (result?.value) {
-          setChecks(JSON.parse(result.value));
+        if (result && result.value) {
+          const parsed = JSON.parse(result.value);
+          if (parsed && typeof parsed === "object") {
+            setChecks(parsed);
+          }
         }
       } catch (e) {
-        // Key doesn't exist yet — first visit
+        // Key doesn't exist yet or storage unavailable
       }
       setLoaded(true);
     })();
   }, []);
 
-  // ── Save to persistent storage on change ──
+  // ── Save to persistent storage on every change (no debounce) ──
   useEffect(() => {
-    if (!loaded) return; // don't save the initial empty state
-    const timer = setTimeout(async () => {
+    if (!loaded) return;
+    let cancelled = false;
+    (async () => {
       try {
         await window.storage.set("module01_checks", JSON.stringify(checks));
+        if (!cancelled) {
+          setSaveStatus("saved");
+          setTimeout(() => { if (!cancelled) setSaveStatus(""); }, 1500);
+        }
       } catch (e) {
-        console.error("Storage save failed:", e);
+        if (!cancelled) setSaveStatus("save failed");
       }
-    }, 500); // debounce 500ms
-    return () => clearTimeout(timer);
+    })();
+    return () => { cancelled = true; };
   }, [checks, loaded]);
+
+  // ── Save on page unload as fallback ──
+  useEffect(() => {
+    const handleUnload = () => {
+      try {
+        window.storage.set("module01_checks", JSON.stringify(checksRef.current));
+      } catch (e) { /* best effort */ }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, []);
 
   const resetProgress = async () => {
     if (!confirm("Reset all progress? This cannot be undone.")) return;
@@ -1177,10 +1199,17 @@ export default function Module01() {
           padding: "12px 16px", borderTop: "1px solid #1e2228",
         }}>
           <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
             fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
             color: "#636d83", marginBottom: 8,
           }}>
-            150 min budget
+            <span>150 min budget</span>
+            {saveStatus && (
+              <span style={{
+                color: saveStatus === "saved" ? "#98c379" : "#e06c75",
+                transition: "opacity 0.3s",
+              }}>{saveStatus === "saved" ? "✓ saved" : "✗ " + saveStatus}</span>
+            )}
           </div>
           <button onClick={resetProgress} style={{
             width: "100%", padding: "6px 0", background: "none",
