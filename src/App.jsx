@@ -636,6 +636,235 @@ const M = {
 };
 
 // ═══════════════════════════════════════════════════════════════════
+// EXAMINER — Claude API assessment + stage gating
+// ═══════════════════════════════════════════════════════════════════
+
+async function assessAnswer(question, devAnswer, modelAnswer) {
+  const response = await fetch("/api/assess", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, answer: devAnswer, model_answer: modelAnswer }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "API error" }));
+    throw new Error(err.detail || "Assessment failed");
+  }
+  return response.json();
+}
+
+const GATE_ORDER = ["q1", "q2", "q3", "q4", "q5", "q6", "q7"];
+const GATE_FIELDS = {
+  q1: "q1d_defend", q2: "q2_blocking", q3: "q3_defend",
+  q4: "q4_defend", q5: "q5_label", q6: "q6_defend", q7: "q7_defend",
+};
+function isSectionUnlocked(sid, checks) {
+  const idx = GATE_ORDER.indexOf(sid);
+  if (idx <= 0) return true;
+  for (let i = 0; i < idx; i++) {
+    if (checks["verdict_" + GATE_FIELDS[GATE_ORDER[i]]] !== "CONFIRMED") return false;
+  }
+  return true;
+}
+
+const lockedStyle = { opacity: 0.06, pointerEvents: "none", maxHeight: 120, overflow: "hidden" };
+
+function LockBanner({ prev }) {
+  return (
+    <div style={{
+      padding: "40px 20px", textAlign: "center", background: "#0d1117",
+      borderRadius: 8, border: "1px solid #1e2228", margin: "0 0 20px",
+    }}>
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: "#2d313a", marginBottom: 8, letterSpacing: "0.1em" }}>▪ LOCKED ▪</div>
+      <div style={{
+        fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+        color: "#3e4451", letterSpacing: "0.04em",
+      }}>DEFEND your answer in <span style={{ color: "#61afef" }}>{prev}</span> to unlock</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TTS — browser speechSynthesis for examiner voice
+// ═══════════════════════════════════════════════════════════════════
+
+async function speakText(text) {
+  try {
+    const response = await fetch("/api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      // Fallback to browser TTS if Cartesia unavailable
+      if (window.speechSynthesis) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.92; u.pitch = 0.85; u.lang = "en-GB";
+        window.speechSynthesis.speak(u);
+      }
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.addEventListener("ended", () => URL.revokeObjectURL(url), { once: true });
+    await audio.play();
+  } catch (e) {
+    // Silent fallback to browser TTS
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.92; u.pitch = 0.85; u.lang = "en-GB";
+      window.speechSynthesis.speak(u);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONCEPTS — tracked across test examinations
+// ═══════════════════════════════════════════════════════════════════
+
+const CONCEPTS = {
+  cat_classification:       { label: "CAT-x Classification", color: "#61afef" },
+  factory_vs_computation:   { label: "Factory vs Computation", color: "#98c379" },
+  a1_idempotence:           { label: "A.1 Idempotence", color: "#61afef" },
+  edge_case_reasoning:      { label: "Edge Case Reasoning", color: "#e5c07b" },
+  parametrize_strategy:     { label: "Parametrize Strategy", color: "#98c379" },
+  characterization_testing: { label: "TST-5 Characterization", color: "#c678dd" },
+  mutation_testing_b14:     { label: "B.1.4 Mutation", color: "#c678dd" },
+  postcondition_reasoning:  { label: "Postcondition Reasoning", color: "#56b6c2" },
+  invariant_preservation:   { label: "Invariant Preservation", color: "#e06c75" },
+  validation_testing_a2:    { label: "A.2 Validation", color: "#e5c07b" },
+  round_trip_testing:       { label: "Round-Trip Testing", color: "#d19a66" },
+  fixture_strategy:         { label: "Fixture Strategy", color: "#98c379" },
+  orchestration_testing:    { label: "B.1.9 Orchestration", color: "#56b6c2" },
+  behavioural_assertion:    { label: "Behavioural Assertion", color: "#61afef" },
+  mock_verification:        { label: "Mock Verification", color: "#d19a66" },
+  seed_reasoning:           { label: "Seed Reasoning", color: "#98c379" },
+  test_level_separation:    { label: "Test Level Separation", color: "#e5c07b" },
+  absence_assertion:        { label: "Absence Assertion", color: "#56b6c2" },
+  test_limitation:          { label: "Test Limitation Awareness", color: "#e06c75" },
+  idempotency:              { label: "Idempotency", color: "#d19a66" },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// EXAM PROMPTS — per-test examination questions + model answers
+// ═══════════════════════════════════════════════════════════════════
+
+const EXAM = {
+  // ── L1: Pure Functions ──
+  l1_generate_departmental_reference_id: {
+    q: "This is classified as CAT-4 Factory, not CAT-8 Computation. What makes it non-deterministic, and how does your uniqueness test prove that?",
+    a: "CAT-4 Factory creates and returns a new object each time. It is non-deterministic because it uses secrets or random to generate the hex suffix — same input produces different output. The uniqueness test calls the function twice with identical input and asserts the results differ, which would fail on a deterministic CAT-8 function.",
+    concepts: ["cat_classification", "factory_vs_computation"],
+  },
+  l1_map_country_code_to_currency: {
+    q: "Your test calls the function twice with the same input and asserts both results are equal. What does this idempotence check prove, and what would its failure tell you?",
+    a: "The A.1 idempotence check proves the function is a pure query with no hidden state mutation between calls. If it failed, the function has a side effect: modifying global state, caching with mutation, or reading from an external source that changes. For a CAT-1 Query, idempotence failure means the classification is wrong.",
+    concepts: ["a1_idempotence", "cat_classification"],
+  },
+  l1_extract_part_qty_pairs: {
+    q: "Your test case data includes both '3 x 452-0427' and '452-0427 2'. Why do you need both directions, and what does it tell you about the regex?",
+    a: "The function uses regex to extract quantity-part pairs. The two patterns test different match groups: qty-before-part and part-before-qty. If only one direction were tested, a regex that only matches QTY PART order would pass, but customers type parts both ways. Testing both directions documents the actual extraction capability.",
+    concepts: ["edge_case_reasoning", "parametrize_strategy"],
+  },
+  l1_extract_department_transfer: {
+    q: "Your None cases test both 'no transfer intent here' and 'hello'. Why do you need both?",
+    a: "'no transfer intent here' contains words like 'transfer' that could trigger a false positive in a naive substring match. 'hello' has no overlapping words at all. Testing both distinguishes between correctly ignoring partial keyword matches and returning None for completely unrelated input.",
+    concepts: ["edge_case_reasoning"],
+  },
+  l1_is_button_press: {
+    q: "Your case sensitivity edge says 'characterize'. Why can you not decide the expected value in advance, and what does TST-5 characterization mean here?",
+    a: "We do not know whether the function does case-insensitive matching until we observe it in the debugger. A characterization test documents current behaviour. We assert what it actually does, not what we think it should do. This test will break if someone changes the behaviour, which is exactly the safety net needed before refactoring.",
+    concepts: ["characterization_testing"],
+  },
+  l1_normalize_whitespace: {
+    q: "Your test case data includes None as an input. What does the current code actually do with None, and what regression does your test catch?",
+    a: "normalize_whitespace uses re.sub with 'text or empty string'. None is falsy, so it falls through to empty string, and strip returns empty string. The test documents this. If someone removes the 'or empty string' guard during refactoring, re.sub raises TypeError on None, and this test catches the regression.",
+    concepts: ["edge_case_reasoning", "characterization_testing"],
+  },
+
+  // ── L2: FSM Transitions ──
+  l2_0: {
+    q: "Your test asserts history length increased by 1. Why is the history assertion necessary — what bug would it catch that the state assertion alone would miss?",
+    a: "A broken implementation could update self.state directly without appending to self.history. The state assertion would pass but the audit trail would be missing. In production this means you lose the ability to debug state transitions. The history assertion catches implementations that mutate state without recording the transition.",
+    concepts: ["mutation_testing_b14", "postcondition_reasoning"],
+  },
+  l2_1: { q: "Same B.1.4 pattern — skip to the next unique test.", a: "Same as above.", concepts: ["mutation_testing_b14"] },
+  l2_2: { q: "Same B.1.4 pattern — skip to the next unique test.", a: "Same as above.", concepts: ["mutation_testing_b14"] },
+  l2_3: {
+    q: "Your test checks history[-1] from_state and to_state values. Why assert the history entry content, not just the history length?",
+    a: "Length only proves an entry was added. Content proves the correct entry was added. A bug that always appends a hardcoded from/to pair would pass a length check but fail a content check. The from/to values are what the admin dashboard uses to reconstruct the customer journey.",
+    concepts: ["mutation_testing_b14", "postcondition_reasoning"],
+  },
+  l2_4: {
+    q: "After the ValueError, your test asserts fsm.state is still MAIN_MENU. Why is this state-unchanged assertion necessary?",
+    a: "Without it, a broken implementation could mutate state first, then check validity, then raise. The exception fires but the FSM is now in an illegal state. The unchanged assertion proves the implementation checks validity before mutating. This is an invariant preservation test layered onto A.2 validation.",
+    concepts: ["invariant_preservation", "validation_testing_a2"],
+  },
+  l2_5: {
+    q: "This is a TST-5 characterization test that MUST PASS. What happens when someone removes the trailing comma and reruns your test?",
+    a: "Removing the comma changes ERROR = ('Error',) to ERROR = 'Error'. Now State.ERROR.value is the string 'Error', not a tuple. The test asserts isinstance tuple — this fails. The test goes RED. That is exactly the point: the characterization test documents current broken behaviour so the fix is measurable.",
+    concepts: ["characterization_testing"],
+  },
+  l2_6: {
+    q: "Your round-trip test transitions the FSM twice before serializing. Why not test with a fresh FSM?",
+    a: "A fresh FSM has default values for everything. The round-trip would pass even if from_dict ignored every field and returned a fresh instance. By applying transitions first, the FSM has non-default state, non-empty history, and populated context. If from_dict drops any of these, the equality assertions fail.",
+    concepts: ["round_trip_testing", "fixture_strategy"],
+  },
+  l2_7: {
+    q: "Your test case data has two crash variants: state as string 'Error' and state as list ['Error']. Why test both?",
+    a: "The tuple ('Error',) takes different forms depending on serialization. In Python, to_dict returns the tuple directly. JSON serialization converts tuples to arrays: json.dumps produces ['Error']. Redis stores JSON, so from_dict reads ['Error'] not ('Error',). Both crash, but for different reasons. Testing both documents both paths.",
+    concepts: ["edge_case_reasoning", "characterization_testing"],
+  },
+  l2_8: {
+    q: "This test asserts state after every intermediate step, not just the final state. Why?",
+    a: "Asserting only the final state would pass if the FSM jumped directly from MAIN_MENU to AI_PROCESSING_DONE, skipping required intermediates. Step-by-step assertions prove the exact sequence. This is a B.1.9 collaboration test — the collaboration is between the four transitions, and skipping any one means the workflow is broken.",
+    concepts: ["orchestration_testing", "postcondition_reasoning"],
+  },
+
+  // ── L3: Webhook ──
+  l3_0: {
+    q: "Your test asserts mock_twilio[0].to equals TEST_NUMBER. Why verify the target, not just that Twilio was called?",
+    a: "A bug could send the menu to the wrong customer. Verifying length proves Twilio was called. Verifying the to field proves it was called with the correct recipient. In a concurrent system, sending the menu to the wrong number means one customer gets two menus and another gets none.",
+    concepts: ["behavioural_assertion", "mock_verification"],
+  },
+  l3_1: {
+    q: "Your seed puts the session at Main Menu. What happens if you forget to seed and the test still passes?",
+    a: "If it passes without seeding, the webhook creates a new session on every call. The test is accidentally testing the new-customer scenario, not the button-from-existing-session scenario. The seed is what makes this a different test from scenario 1. Without it, two tests prove the same thing.",
+    concepts: ["fixture_strategy", "seed_reasoning"],
+  },
+  l3_2: {
+    q: "You assert current_reference_id startswith sal_. Why not assert the exact ID value?",
+    a: "The reference ID contains a random hex suffix from a CAT-4 non-deterministic factory. Asserting an exact value would make the test brittle and non-repeatable. startswith sal_ proves the prefix contract without coupling to the random component. This is a behavioural assertion: assert what matters, ignore what is random.",
+    concepts: ["behavioural_assertion", "factory_vs_computation"],
+  },
+  l3_3: {
+    q: "Your test uses mock_claude but only asserts len mock_twilio >= 1. What are you NOT testing, and why is that acceptable at L3?",
+    a: "You are not testing that Claude received the correct prompt, that the AI response was parsed correctly, or that parts were extracted. Those are L1 concerns (extract_part_qty_pairs) and L2 concerns. L3 tests the orchestration: does the full pipeline produce a Twilio message? The internal wiring is tested at lower levels.",
+    concepts: ["test_level_separation", "orchestration_testing"],
+  },
+  l3_4: {
+    q: "Your test asserts state is unchanged. Why is the absence of a state change the assertion, rather than testing a specific error message?",
+    a: "The system does not send an error for unknown input — it re-sends the menu or ignores it. Asserting state unchanged is an absence assertion: the system did NOT crash, did NOT transition to an invalid state, did NOT corrupt the session. This tests resilience, not error handling.",
+    concepts: ["absence_assertion", "behavioural_assertion"],
+  },
+  l3_5: {
+    q: "Your test asserts the cooldown key exists in Redis. Why is the cooldown the thing to test, not the message content?",
+    a: "The message content is handled by format_all_customer_messages — an L1 concern. At L3 we test the orchestration side effect: did the webhook set the rate-limit key? The cooldown prevents abuse. Testing the cooldown key proves the webhook rate-limiting behaviour.",
+    concepts: ["test_level_separation", "behavioural_assertion"],
+  },
+  l3_6: {
+    q: "Your test monkeypatches Claude to raise and asserts state is not AI Processing. What does this NOT prove about error recovery?",
+    a: "It proves the FSM is not stuck, but not that the customer received an error message, that the session is usable for the next message, or that the error was logged. A test asserting state != AI Processing would pass if the error handler transitioned to State.ERROR — which due to the tuple bug permanently locks the customer.",
+    concepts: ["absence_assertion", "test_limitation"],
+  },
+  l3_7: {
+    q: "This is a TST-5 characterization marked as BUG. What would an idempotent system do differently, and how would your test change?",
+    a: "An idempotent system would check the MessageSid against a dedup store before processing. The second POST with the same MessageSid would return 200 but skip all side effects. The test would change from asserting ref_1 != ref_2 (documenting the bug) to asserting ref_1 == ref_2 (documenting correct behaviour). The characterization test becomes a regression test after the fix.",
+    concepts: ["characterization_testing", "idempotency"],
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // COMPONENTS
 // ═══════════════════════════════════════════════════════════════════
 
@@ -715,64 +944,154 @@ function CodeBlock({ code, lang = "bash", title }) {
   );
 }
 
-function AnswerField({ id, placeholder, checks, setChecks, multiline = false }) {
-  const val = checks[`answer_${id}`] || "";
-  const set = (v) => setChecks(p => ({ ...p, [`answer_${id}`]: v }));
+function AnswerField({ id, placeholder, checks, setChecks, multiline = false, question = "", modelAnswer: modelAnswerProp }) {
+  const val = checks["answer_" + id] || "";
+  const set = (v) => setChecks(p => ({ ...p, ["answer_" + id]: v }));
   const [showModel, setShowModel] = useState(false);
-  const modelAnswer = M[id];
-  const inputStyle = {
-    width: "100%", background: "#1a1d23", border: "1px solid #2d313a",
+  const [assessing, setAssessing] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const recRef = useRef(null);
+  const modelAnswer = modelAnswerProp || M[id];
+  const verdict = checks["verdict_" + id];
+  const feedback = checks["feedback_" + id] || "";
+  const probe = checks["probe_" + id] || "";
+  const probeVal = checks["answer_probe_" + id] || "";
+  const confirmed = verdict === "CONFIRMED";
+
+  const sty = {
+    width: "100%", background: confirmed ? "#98c37908" : "#1a1d23",
+    border: "1px solid " + (confirmed ? "#98c37944" : "#2d313a"),
     borderRadius: 6, color: "#abb2bf", fontFamily: "'JetBrains Mono', monospace",
     fontSize: 12.5, padding: "10px 12px", resize: "vertical", outline: "none",
-    transition: "border-color 0.2s", boxSizing: "border-box",
-    minHeight: multiline ? 100 : undefined,
+    boxSizing: "border-box", minHeight: multiline ? 100 : undefined,
   };
-  const focus = (e) => e.target.style.borderColor = "#61afef55";
-  const blur = (e) => e.target.style.borderColor = "#2d313a";
+
+  const hasSR = typeof window !== "undefined" && navigator.mediaDevices;
+  const toggleVoice = async () => {
+    if (recording) {
+      // Stop recording and transcribe
+      if (recRef.current && recRef.current.state !== "inactive") {
+        recRef.current.stop();
+        recRef.current.stream.getTracks().forEach(t => t.stop());
+      }
+      setRecording(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (e) => chunks.push(e.data);
+      mr.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const form = new FormData();
+        form.append("audio", blob, "answer.webm");
+        try {
+          const res = await fetch("/api/transcribe", { method: "POST", body: form });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.transcript) set(val ? val + " " + data.transcript : data.transcript);
+          }
+        } catch (e) { /* transcription failed silently */ }
+      };
+      mr.start();
+      recRef.current = mr;
+      setRecording(true);
+    } catch (e) {
+      // Mic access denied — fall back to Web Speech API if available
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SR) {
+        const rec = new SR();
+        rec.continuous = true; rec.interimResults = false; rec.lang = "en-GB";
+        rec.onresult = (e) => {
+          let t = "";
+          for (let i = 0; i < e.results.length; i++) if (e.results[i].isFinal) t += e.results[i][0].transcript + " ";
+          if (t.trim()) set(val ? val + " " + t.trim() : t.trim());
+        };
+        rec.onerror = () => setRecording(false);
+        rec.onend = () => setRecording(false);
+        rec.start(); recRef.current = rec; setRecording(true);
+      }
+    }
+  };
+
+  const defend = async (ans, q) => {
+    if (!ans?.trim() || !modelAnswer) return;
+    setAssessing(true);
+    try {
+      const r = await assessAnswer(q || question || placeholder || id, ans, modelAnswer);
+      setChecks(p => ({ ...p, ["verdict_" + id]: r.verdict, ["feedback_" + id]: r.feedback || "", ["probe_" + id]: r.probe || "" }));
+    } catch (e) {
+      setChecks(p => ({ ...p, ["verdict_" + id]: "ERROR", ["feedback_" + id]: e.message }));
+    }
+    setAssessing(false);
+  };
+
+  const vc = { CONFIRMED: "#98c379", PARTIAL: "#e5c07b", NOT_MET: "#e06c75", ERROR: "#e06c75" };
+
   return (
     <div>
-      {multiline
-        ? <textarea value={val} onChange={(e) => set(e.target.value)} placeholder={placeholder}
-            style={inputStyle} rows={4} onFocus={focus} onBlur={blur} />
-        : <input value={val} onChange={(e) => set(e.target.value)} placeholder={placeholder}
-            style={inputStyle} onFocus={focus} onBlur={blur} />
-      }
-      {modelAnswer && (
+      <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+        <div style={{ flex: 1 }}>
+          {multiline
+            ? <textarea value={val} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={sty} rows={4} readOnly={confirmed} />
+            : <input value={val} onChange={(e) => set(e.target.value)} placeholder={placeholder} style={sty} readOnly={confirmed} />
+          }
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 2 }}>
+          {hasSR && !confirmed && (
+            <button onClick={toggleVoice} style={{
+              background: recording ? "#e06c7522" : "#21252b", border: "1px solid " + (recording ? "#e06c75" : "#3e4451"),
+              borderRadius: 4, color: recording ? "#e06c75" : "#636d83", cursor: "pointer", fontSize: 10, padding: "6px 8px",
+              fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, whiteSpace: "nowrap",
+            }}>{recording ? "■ STOP" : "● REC"}</button>
+          )}
+          {modelAnswer && !confirmed && (
+            <button onClick={() => defend(val)} disabled={assessing || !val.trim()} style={{
+              background: assessing ? "#21252b" : "#c678dd18", border: "1px solid #c678dd44", borderRadius: 4,
+              color: assessing ? "#636d83" : "#c678dd", cursor: assessing || !val.trim() ? "default" : "pointer",
+              fontSize: 10, padding: "6px 8px", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700,
+              letterSpacing: "0.04em", opacity: !val.trim() ? 0.4 : 1, whiteSpace: "nowrap",
+            }}>{assessing ? "..." : "DEFEND"}</button>
+          )}
+          {confirmed && <span style={{ color: "#98c379", fontSize: 14, textAlign: "center" }}>✓</span>}
+        </div>
+      </div>
+
+      {verdict && verdict !== "ERROR" && (
+        <div style={{ marginTop: 6, padding: "8px 12px", borderRadius: 6, background: vc[verdict] + "08", border: "1px solid " + vc[verdict] + "33", borderLeft: "3px solid " + vc[verdict] }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: vc[verdict], fontWeight: 700, letterSpacing: "0.06em" }}>{verdict}</span>
+          {confirmed && <span style={{ color: "#98c379", fontSize: 12, marginLeft: 6 }}>✓</span>}
+          <div style={{ fontSize: 12.5, color: "#abb2bf", lineHeight: 1.6, marginTop: 4 }}>{feedback}</div>
+        </div>
+      )}
+      {verdict === "ERROR" && <div style={{ marginTop: 6, padding: "8px 12px", borderRadius: 6, background: "#e06c7508", border: "1px solid #e06c7533", fontSize: 12, color: "#e06c75" }}>{feedback}</div>}
+
+      {verdict === "PARTIAL" && probe && (
+        <div style={{ marginTop: 8, padding: "10px 14px", borderRadius: 6, background: "#e5c07b08", border: "1px solid #e5c07b22", borderLeft: "3px solid #e5c07b44" }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#e5c07b", fontWeight: 700, letterSpacing: "0.06em", marginBottom: 6 }}>FOLLOW-UP</div>
+          <div style={{ fontSize: 13, color: "#d7dae0", lineHeight: 1.6, marginBottom: 8, fontStyle: "italic" }}>"{probe}"</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input value={probeVal} onChange={(e) => setChecks(p => ({ ...p, ["answer_probe_" + id]: e.target.value }))} placeholder="Answer the follow-up..." style={{ ...sty, minHeight: undefined, flex: 1 }} />
+            <button onClick={() => defend(probeVal, probe)} disabled={assessing || !probeVal.trim()} style={{
+              background: "#e5c07b18", border: "1px solid #e5c07b44", borderRadius: 4, color: "#e5c07b",
+              cursor: "pointer", fontSize: 10, padding: "6px 8px", fontFamily: "'IBM Plex Mono', monospace",
+              fontWeight: 700, opacity: !probeVal.trim() ? 0.4 : 1, whiteSpace: "nowrap",
+            }}>{assessing ? "..." : "DEFEND"}</button>
+          </div>
+        </div>
+      )}
+
+      {modelAnswer && confirmed && (
         <div style={{ marginTop: 4 }}>
-          <button onClick={() => setShowModel(!showModel)} style={{
-            background: "none", border: "none", cursor: "pointer", padding: "3px 0",
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <span style={{
-              fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
-              color: showModel ? "#56b6c2" : "#3e4451", fontWeight: 600,
-              letterSpacing: "0.05em", transition: "color 0.2s",
-            }}>
-              {showModel ? "HIDE" : "REVEAL"} MODEL ANSWER
-            </span>
-            <span style={{
-              color: showModel ? "#56b6c2" : "#3e4451", fontSize: 10,
-              transform: showModel ? "rotate(90deg)" : "rotate(0)",
-              transition: "transform 0.2s, color 0.2s", display: "inline-block",
-            }}>
-              {showModel ? "▾" : "▸"}
-            </span>
+          <button onClick={() => setShowModel(!showModel)} style={{ background: "none", border: "none", cursor: "pointer", padding: "3px 0", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: showModel ? "#56b6c2" : "#3e4451", fontWeight: 600, letterSpacing: "0.05em" }}>{showModel ? "HIDE" : "REVEAL"} MODEL ANSWER</span>
+            <span style={{ color: showModel ? "#56b6c2" : "#3e4451", fontSize: 10, transform: showModel ? "rotate(90deg)" : "rotate(0)", transition: "transform 0.2s", display: "inline-block" }}>{showModel ? "▾" : "▸"}</span>
           </button>
           {showModel && (
-            <div style={{
-              background: "#56b6c206", border: "1px solid #56b6c218",
-              borderLeft: "3px solid #56b6c244", borderRadius: "0 6px 6px 0",
-              padding: "10px 14px", marginTop: 4,
-            }}>
-              <div style={{
-                fontFamily: "'IBM Plex Mono', monospace", fontSize: 9,
-                color: "#56b6c266", fontWeight: 700, letterSpacing: "0.06em",
-                marginBottom: 6,
-              }}>MODEL ANSWER</div>
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
-                color: "#8fbcbb", lineHeight: 1.65, whiteSpace: "pre-wrap",
-              }}>{modelAnswer}</div>
+            <div style={{ background: "#56b6c206", border: "1px solid #56b6c218", borderLeft: "3px solid #56b6c244", borderRadius: "0 6px 6px 0", padding: "10px 14px", marginTop: 4 }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: "#56b6c266", fontWeight: 700, letterSpacing: "0.06em", marginBottom: 6 }}>MODEL ANSWER</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#8fbcbb", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{modelAnswer}</div>
             </div>
           )}
         </div>
@@ -960,6 +1279,81 @@ function ProgressRing({ total, done }) {
   );
 }
 
+function ConceptPills({ concepts }) {
+  if (!concepts || concepts.length === 0) return null;
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+      {concepts.map(cid => {
+        const c = CONCEPTS[cid];
+        if (!c) return null;
+        return (
+          <span key={cid} style={{
+            background: c.color + "12", border: "1px solid " + c.color + "33",
+            borderRadius: 3, padding: "1px 6px", fontSize: 9,
+            fontFamily: "'IBM Plex Mono', monospace", color: c.color,
+            fontWeight: 600, letterSpacing: "0.03em",
+          }}>{c.label}</span>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExamSection({ examKey, checks, setChecks }) {
+  const exam = EXAM[examKey];
+  if (!exam) return null;
+  const [speaking, setSpeaking] = useState(false);
+
+  const speak = async () => {
+    if (speaking) { setSpeaking(false); return; }
+    setSpeaking(true);
+    await speakText(exam.q);
+    setSpeaking(false);
+  };
+
+  const hasTTS = true;
+
+  return (
+    <div style={{
+      marginTop: 12, padding: "12px 14px", borderRadius: 6,
+      background: "linear-gradient(135deg, #c678dd06, #61afef06)",
+      border: "1px solid #c678dd22",
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+        <span style={{
+          fontFamily: "'IBM Plex Mono', monospace", fontSize: 9,
+          color: "#c678dd", fontWeight: 700, letterSpacing: "0.06em",
+          background: "#c678dd18", padding: "2px 6px", borderRadius: 3,
+          whiteSpace: "nowrap", marginTop: 1,
+        }}>EXAMINE</span>
+        <div style={{ flex: 1, fontSize: 13, color: "#d7dae0", lineHeight: 1.6, fontStyle: "italic" }}>
+          "{exam.q}"
+        </div>
+        {hasTTS && (
+          <button onClick={speak} style={{
+            background: speaking ? "#c678dd18" : "#21252b",
+            border: "1px solid " + (speaking ? "#c678dd" : "#3e4451"),
+            borderRadius: 4, color: speaking ? "#c678dd" : "#636d83",
+            cursor: "pointer", fontSize: 10, padding: "4px 7px",
+            fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}>{speaking ? "■" : "▶"}</button>
+        )}
+      </div>
+      <AnswerField
+        id={"exam_" + examKey}
+        placeholder="Explain your reasoning..."
+        checks={checks}
+        setChecks={setChecks}
+        multiline
+        question={exam.q}
+        modelAnswer={exam.a}
+      />
+      <ConceptPills concepts={exam.concepts} />
+    </div>
+  );
+}
+
 function TestCaseData({ cases, title }) {
   if (!cases || cases.length === 0) return null;
   const keys = Object.keys(cases[0]);
@@ -1125,6 +1519,28 @@ export default function Module01() {
           }}>WEBHOOK MONSTER</div>
           <div style={{ marginTop: 12 }}>
             <ProgressRing total={checkCount.total} done={checkCount.done} />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={{
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: 9,
+              color: "#636d83", letterSpacing: "0.06em", marginBottom: 6,
+            }}>CONCEPTS</div>
+            <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+              {Object.entries(CONCEPTS).map(([cid, c]) => {
+                const confirmed = Object.keys(checks).some(k =>
+                  k.startsWith("verdict_exam_") && checks[k] === "CONFIRMED" &&
+                  EXAM[k.replace("verdict_exam_", "")]?.concepts?.includes(cid)
+                );
+                return (
+                  <div key={cid} style={{
+                    width: 8, height: 8, borderRadius: 2,
+                    background: confirmed ? c.color : "#1e2228",
+                    border: "1px solid " + (confirmed ? c.color + "66" : "#2d313a"),
+                    transition: "all 0.3s",
+                  }} title={c.label + (confirmed ? " ✓" : "")} />
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -1370,6 +1786,8 @@ export default function Module01() {
 
         {/* ═══ Q2 — Redis Client ═══ */}
         <div ref={regRef("q2")}>
+          {!isSectionUnlocked("q2", checks) && <LockBanner prev="Q1" />}
+          <div style={!isSectionUnlocked("q2", checks) ? lockedStyle : undefined}>
           <H2>Q2 — Synchronous Redis in Async Handler</H2>
 
           <InterviewDialog
@@ -1424,10 +1842,13 @@ export default function Module01() {
           </DebuggerExercise>
 
           <Checkbox id="q2_done" label="Q2 complete — three Redis clients found, concurrent curl observed, CONC-3 confirmed" checks={checks} setChecks={setChecks} />
+          </div>
         </div>
 
         {/* ═══ Q3 — .keys() ═══ */}
         <div ref={regRef("q3")}>
+          {!isSectionUnlocked("q3", checks) && <LockBanner prev="Q2" />}
+          <div style={!isSectionUnlocked("q3", checks) ? lockedStyle : undefined}>
           <H2>Q3 — The <code style={{ color: "#e06c75" }}>.keys()</code> Time Bomb</H2>
 
           <InterviewDialog
@@ -1458,10 +1879,13 @@ export default function Module01() {
           <AnswerField id="q3_defend" placeholder="Defend your classification..." checks={checks} setChecks={setChecks} multiline />
 
           <Checkbox id="q3_done" label="Q3 complete — all .keys() calls counted, scan_iter occurrences confirmed" checks={checks} setChecks={setChecks} />
+          </div>
         </div>
 
         {/* ═══ Q4 — Decorator ═══ */}
         <div ref={regRef("q4")}>
+          {!isSectionUnlocked("q4", checks) && <LockBanner prev="Q3" />}
+          <div style={!isSectionUnlocked("q4", checks) ? lockedStyle : undefined}>
           <H2>Q4 — <code style={{ color: "#c678dd" }}>@handle_whatsapp_errors</code> Layer Collapse</H2>
 
           <InterviewDialog
@@ -1512,10 +1936,13 @@ export default function Module01() {
           </DebuggerExercise>
 
           <Checkbox id="q4_done" label="Q4 complete — grep run, error path triggered, temporary raise removed" checks={checks} setChecks={setChecks} />
+          </div>
         </div>
 
         {/* ═══ Q5 — State.ERROR ═══ */}
         <div ref={regRef("q5")}>
+          {!isSectionUnlocked("q5", checks) && <LockBanner prev="Q4" />}
+          <div style={!isSectionUnlocked("q5", checks) ? lockedStyle : undefined}>
           <H2>Q5 — <code style={{ color: "#e06c75" }}>State.ERROR</code> Tuple Bug</H2>
 
           <div style={{
@@ -1577,10 +2004,13 @@ export default function Module01() {
           </DebuggerExercise>
 
           <Checkbox id="q5_done" label="Q5 complete — tuple confirmed, from_dict crash triggered, temporary raise removed" checks={checks} setChecks={setChecks} />
+          </div>
         </div>
 
         {/* ═══ Q6 — Observations ═══ */}
         <div ref={regRef("q6")}>
+          {!isSectionUnlocked("q6", checks) && <LockBanner prev="Q5" />}
+          <div style={!isSectionUnlocked("q6", checks) ? lockedStyle : undefined}>
           <H2>Q6 — Observe Before You Assert</H2>
           <P>Run every curl in sequence. Read Redis after each one. These observations become your test assertions.</P>
 
@@ -1635,10 +2065,13 @@ export default function Module01() {
           </DebuggerExercise>
 
           <Checkbox id="q6_done" label="Q6 complete — all five curls run, Redis recorded, four-concern breakpoints set" checks={checks} setChecks={setChecks} />
+          </div>
         </div>
 
         {/* ═══ Q7 — Production Failure ═══ */}
         <div ref={regRef("q7")}>
+          {!isSectionUnlocked("q7", checks) && <LockBanner prev="Q6" />}
+          <div style={!isSectionUnlocked("q7", checks) ? lockedStyle : undefined}>
           <H2>Q7 — Single Biggest Production Concern</H2>
 
           <InterviewDialog
@@ -1684,6 +2117,7 @@ export default function Module01() {
           </DebuggerExercise>
 
           <Checkbox id="q7_done" label="Q7 complete — chosen failure mode triggered, temporary code removed" checks={checks} setChecks={setChecks} />
+          </div>
         </div>
 
         {/* ═══ FAILURE MATRIX ═══ */}
@@ -1749,6 +2183,7 @@ export default function Module01() {
               </div>
               {f.pseudo && <CodeBlock title={`${f.template} Template — ${f.fn}`} lang="python" code={f.pseudo} />}
               {f.cases && <TestCaseData title={f.fn} cases={f.cases} />}
+              <ExamSection examKey={`l1_${f.fn}`} checks={checks} setChecks={setChecks} />
               <div style={{ marginTop: 10 }}>
                 <Checkbox id={`l1_${f.fn}`} label={`${f.fn} — tests written with edge cases`} checks={checks} setChecks={setChecks} />
               </div>
@@ -1770,6 +2205,7 @@ export default function Module01() {
               <div style={{ fontSize: 12, color: "#636d83", lineHeight: 1.5, marginBottom: 8 }}>{t.assertion}</div>
               {t.pseudo && <CodeBlock title={`${t.template} Template`} lang="python" code={t.pseudo} />}
               {t.cases && <TestCaseData title={t.test} cases={t.cases} />}
+              <ExamSection examKey={`l2_${i}`} checks={checks} setChecks={setChecks} />
               <Checkbox id={`l2_${i}`} label={`${t.test} — test written`} checks={checks} setChecks={setChecks} />
             </Collapsible>
           ))}
@@ -1811,6 +2247,7 @@ export default function Module01() {
               <div style={{ fontSize: 12, color: "#abb2bf", lineHeight: 1.6, marginBottom: 8 }}>{s.assertions}</div>
               {s.pseudo && <CodeBlock title="B.1.9 Template" lang="python" code={s.pseudo} />}
               {s.cases && <TestCaseData title={s.scenario} cases={s.cases} />}
+              <ExamSection examKey={`l3_${i}`} checks={checks} setChecks={setChecks} />
               <Checkbox id={`l3_${i}`} label={`${s.scenario} — test written`} checks={checks} setChecks={setChecks} />
             </Collapsible>
           ))}
