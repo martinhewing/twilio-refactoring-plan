@@ -1012,56 +1012,32 @@ function TestCaseData({ cases, title }) {
 
 export default function Module01() {
   const [activeSection, setActiveSection] = useState("orientation");
-  const [checks, setChecks] = useState({});
-  const [loaded, setLoaded] = useState(false);
-  const [storageLog, setStorageLog] = useState([]);
+  const STORAGE_KEY = "module01_checks";
+
+  const [checks, setChecks] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
   const sectionRefs = useRef({});
   const mainRef = useRef(null);
 
-  const log = (msg) => setStorageLog(prev => [...prev.slice(-4), msg]);
-
-  // ── Load from persistent storage on mount ──
+  // ── Save to localStorage on every change ──
   useEffect(() => {
-    (async () => {
-      const hasStorage = typeof window !== "undefined" && window.storage && typeof window.storage.get === "function";
-      log(hasStorage ? "storage API: available" : "storage API: NOT FOUND");
-      if (!hasStorage) { setLoaded(true); return; }
-      try {
-        const result = await window.storage.get("module01_checks");
-        const parsed = JSON.parse(result.value);
-        const keyCount = Object.keys(parsed).length;
-        setChecks(parsed);
-        log("load: " + keyCount + " keys restored");
-      } catch (e) {
-        log("load: no saved data (" + e.message + ")");
-      }
-      setLoaded(true);
-    })();
-  }, []);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(checks));
+    } catch (e) {
+      console.error("Save failed:", e);
+    }
+  }, [checks]);
 
-  // ── Save to persistent storage on every change ──
-  useEffect(() => {
-    if (!loaded) return;
-    const hasStorage = typeof window !== "undefined" && window.storage && typeof window.storage.set === "function";
-    if (!hasStorage) return;
-    const keyCount = Object.keys(checks).length;
-    if (keyCount === 0) return;
-    (async () => {
-      try {
-        const payload = JSON.stringify(checks);
-        await window.storage.set("module01_checks", payload);
-        log("save: " + keyCount + " keys (" + payload.length + " bytes)");
-      } catch (e) {
-        log("save FAILED: " + e.message);
-      }
-    })();
-  }, [checks, loaded]);
-
-  const resetProgress = async () => {
+  const resetProgress = () => {
     if (!confirm("Reset all progress? This cannot be undone.")) return;
     setChecks({});
-    try { await window.storage.delete("module01_checks"); } catch (e) {}
-    log("reset: cleared");
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const totalChecks = useMemo(() => Object.keys(checks).filter(k => !k.startsWith("answer_")).length, [checks]);
@@ -1125,14 +1101,6 @@ export default function Module01() {
     }}>{children}</h3>
   );
 
-  if (!loaded) return (
-    <div style={{
-      display: "flex", height: "100vh", background: "#0d1117",
-      alignItems: "center", justifyContent: "center",
-      fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "#636d83",
-    }}>Loading progress…</div>
-  );
-
   return (
     <div style={{
       display: "flex", height: "100vh", background: "#0d1117",
@@ -1189,22 +1157,7 @@ export default function Module01() {
             fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
             color: "#636d83", marginBottom: 8,
           }}>150 min budget</div>
-          {storageLog.length > 0 && (
-            <div style={{
-              fontFamily: "'IBM Plex Mono', monospace", fontSize: 9,
-              color: "#636d83", marginBottom: 8, lineHeight: 1.6,
-              padding: "6px 8px", background: "#141820", borderRadius: 4,
-              border: "1px solid #1e2228",
-            }}>
-              {storageLog.map((msg, i) => (
-                <div key={i} style={{
-                  color: msg.includes("FAILED") || msg.includes("NOT FOUND") ? "#e06c75"
-                    : msg.includes("restored") || msg.includes("save:") ? "#98c379"
-                    : "#636d83",
-                }}>{msg}</div>
-              ))}
-            </div>
-          )}
+
           <button onClick={resetProgress} style={{
             width: "100%", padding: "6px 0", background: "none",
             border: "1px solid #e06c7533", borderRadius: 4,
@@ -1223,29 +1176,7 @@ export default function Module01() {
 
         {/* ═══ ORIENTATION ═══ */}
         <div ref={regRef("orientation")}>
-          {/* Storage diagnostic — remove once persistence confirmed */}
-          <div style={{
-            background: storageLog.length > 0
-              ? (storageLog[storageLog.length-1].includes("FAILED") || storageLog[storageLog.length-1].includes("NOT FOUND") ? "#e06c7522" : "#98c37922")
-              : "#e5c07b22",
-            border: "1px solid #2d313a", borderRadius: 6,
-            padding: "8px 14px", marginBottom: 16,
-            fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
-          }}>
-            <span style={{ color: "#636d83" }}>STORAGE: </span>
-            <span style={{
-              color: storageLog.length > 0
-                ? (storageLog[storageLog.length-1].includes("FAILED") || storageLog[storageLog.length-1].includes("NOT FOUND") ? "#e06c75" : "#98c379")
-                : "#e5c07b",
-            }}>
-              {storageLog.length > 0 ? storageLog[storageLog.length-1] : "waiting..."}
-            </span>
-            <span style={{ color: "#636d83", marginLeft: 12 }}>
-              | API: {typeof window !== "undefined" && window.storage ? "exists" : "missing"}
-              | loaded: {String(loaded)}
-              | keys: {Object.keys(checks).length}
-            </span>
-          </div>
+
           <div style={{
             fontFamily: "'Outfit', sans-serif", fontSize: 32, fontWeight: 800,
             color: "#d7dae0", letterSpacing: "-0.03em", lineHeight: 1.2,
