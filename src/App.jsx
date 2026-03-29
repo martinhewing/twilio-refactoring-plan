@@ -1013,8 +1013,47 @@ function TestCaseData({ cases, title }) {
 export default function Module01() {
   const [activeSection, setActiveSection] = useState("orientation");
   const [checks, setChecks] = useState({});
+  const [loaded, setLoaded] = useState(false);
   const sectionRefs = useRef({});
   const mainRef = useRef(null);
+
+  // ── Load from persistent storage on mount ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await window.storage.get("module01_checks");
+        if (result?.value) {
+          setChecks(JSON.parse(result.value));
+        }
+      } catch (e) {
+        // Key doesn't exist yet — first visit
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  // ── Save to persistent storage on change ──
+  useEffect(() => {
+    if (!loaded) return; // don't save the initial empty state
+    const timer = setTimeout(async () => {
+      try {
+        await window.storage.set("module01_checks", JSON.stringify(checks));
+      } catch (e) {
+        console.error("Storage save failed:", e);
+      }
+    }, 500); // debounce 500ms
+    return () => clearTimeout(timer);
+  }, [checks, loaded]);
+
+  const resetProgress = async () => {
+    if (!confirm("Reset all progress? This cannot be undone.")) return;
+    setChecks({});
+    try {
+      await window.storage.delete("module01_checks");
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const totalChecks = useMemo(() => Object.keys(checks).filter(k => !k.startsWith("answer_")).length, [checks]);
   const doneChecks = useMemo(() => Object.values(checks).filter((v, i) => {
@@ -1077,6 +1116,14 @@ export default function Module01() {
     }}>{children}</h3>
   );
 
+  if (!loaded) return (
+    <div style={{
+      display: "flex", height: "100vh", background: "#0d1117",
+      alignItems: "center", justifyContent: "center",
+      fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "#636d83",
+    }}>Loading progress…</div>
+  );
+
   return (
     <div style={{
       display: "flex", height: "100vh", background: "#0d1117",
@@ -1128,10 +1175,20 @@ export default function Module01() {
 
         <div style={{
           padding: "12px 16px", borderTop: "1px solid #1e2228",
-          fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
-          color: "#636d83",
         }}>
-          150 min budget
+          <div style={{
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 10,
+            color: "#636d83", marginBottom: 8,
+          }}>
+            150 min budget
+          </div>
+          <button onClick={resetProgress} style={{
+            width: "100%", padding: "6px 0", background: "none",
+            border: "1px solid #e06c7533", borderRadius: 4,
+            color: "#e06c75", cursor: "pointer", fontSize: 10,
+            fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+            letterSpacing: "0.04em", transition: "all 0.15s",
+          }}>RESET PROGRESS</button>
         </div>
       </nav>
 
