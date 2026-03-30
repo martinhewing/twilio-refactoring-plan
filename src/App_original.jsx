@@ -950,9 +950,6 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
   const [showModel, setShowModel] = useState(false);
   const [assessing, setAssessing] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [probeSpeaking, setProbeSpeaking] = useState(false);
-  const [probeRecording, setProbeRecording] = useState(false);
-  const probeRecRef = useRef(null);
   const recRef = useRef(null);
   const modelAnswer = modelAnswerProp || M[id];
   const verdict = checks["verdict_" + id];
@@ -960,7 +957,6 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
   const probe = checks["probe_" + id] || "";
   const probeVal = checks["answer_probe_" + id] || "";
   const confirmed = verdict === "CONFIRMED";
-  const partialCount = checks["partial_count_" + id] || 0;
 
   const sty = {
     width: "100%", background: confirmed ? "#98c37908" : "#1a1d23",
@@ -1024,88 +1020,11 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
     setAssessing(true);
     try {
       const r = await assessAnswer(q || question || placeholder || id, ans, modelAnswer);
-      const partialKey = "partial_count_" + id;
-      const currentCount = checks[partialKey] || 0;
-
-      if (r.verdict === "NOT_MET" && currentCount < 10) {
-        // Override NOT_MET to PARTIAL — give 10 partial attempts before failing
-        setChecks(p => ({ ...p,
-          ["verdict_" + id]: "PARTIAL",
-          ["feedback_" + id]: r.feedback || "",
-          ["probe_" + id]: r.probe || "",
-          [partialKey]: currentCount + 1,
-        }));
-      } else if (r.verdict === "PARTIAL") {
-        setChecks(p => ({ ...p,
-          ["verdict_" + id]: r.verdict,
-          ["feedback_" + id]: r.feedback || "",
-          ["probe_" + id]: r.probe || "",
-          [partialKey]: currentCount + 1,
-        }));
-      } else {
-        setChecks(p => ({ ...p,
-          ["verdict_" + id]: r.verdict,
-          ["feedback_" + id]: r.feedback || "",
-          ["probe_" + id]: r.probe || "",
-        }));
-      }
+      setChecks(p => ({ ...p, ["verdict_" + id]: r.verdict, ["feedback_" + id]: r.feedback || "", ["probe_" + id]: r.probe || "" }));
     } catch (e) {
       setChecks(p => ({ ...p, ["verdict_" + id]: "ERROR", ["feedback_" + id]: e.message }));
     }
     setAssessing(false);
-  };
-
-  const speakProbe = async () => {
-    if (probeSpeaking) { setProbeSpeaking(false); return; }
-    setProbeSpeaking(true);
-    await speakText(probe);
-    setProbeSpeaking(false);
-  };
-
-  const toggleProbeVoice = async () => {
-    if (probeRecording) {
-      if (probeRecRef.current && probeRecRef.current.state !== "inactive") {
-        probeRecRef.current.stop();
-        probeRecRef.current.stream.getTracks().forEach(t => t.stop());
-      }
-      setProbeRecording(false);
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const chunks = [];
-      const mr = new MediaRecorder(stream);
-      mr.ondataavailable = (e) => chunks.push(e.data);
-      mr.onstop = async () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const form = new FormData();
-        form.append("audio", blob, "answer.webm");
-        try {
-          const res = await fetch("/api/transcribe", { method: "POST", body: form });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.transcript) setChecks(p => ({ ...p, ["answer_probe_" + id]: (p["answer_probe_" + id] || "") + (p["answer_probe_" + id] ? " " : "") + data.transcript }));
-          }
-        } catch (e) { /* transcription failed silently */ }
-      };
-      mr.start();
-      probeRecRef.current = mr;
-      setProbeRecording(true);
-    } catch (e) {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SR) {
-        const rec = new SR();
-        rec.continuous = true; rec.interimResults = false; rec.lang = "en-GB";
-        rec.onresult = (ev) => {
-          let t = "";
-          for (let i = 0; i < ev.results.length; i++) if (ev.results[i].isFinal) t += ev.results[i][0].transcript + " ";
-          if (t.trim()) setChecks(p => ({ ...p, ["answer_probe_" + id]: (p["answer_probe_" + id] || "") + (p["answer_probe_" + id] ? " " : "") + t.trim() }));
-        };
-        rec.onerror = () => setProbeRecording(false);
-        rec.onend = () => setProbeRecording(false);
-        rec.start(); probeRecRef.current = rec; setProbeRecording(true);
-      }
-    }
   };
 
   const vc = { CONFIRMED: "#98c379", PARTIAL: "#e5c07b", NOT_MET: "#e06c75", ERROR: "#e06c75" };
@@ -1141,15 +1060,8 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
 
       {verdict && verdict !== "ERROR" && (
         <div style={{ marginTop: 6, padding: "8px 12px", borderRadius: 6, background: vc[verdict] + "08", border: "1px solid " + vc[verdict] + "33", borderLeft: "3px solid " + vc[verdict] }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: vc[verdict], fontWeight: 700, letterSpacing: "0.06em" }}>{verdict}</span>
-            {confirmed && <span style={{ color: "#98c379", fontSize: 12 }}>✓</span>}
-            {verdict === "PARTIAL" && (
-              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: "#636d83", marginLeft: "auto" }}>
-                attempt {partialCount}/10
-              </span>
-            )}
-          </div>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: vc[verdict], fontWeight: 700, letterSpacing: "0.06em" }}>{verdict}</span>
+          {confirmed && <span style={{ color: "#98c379", fontSize: 12, marginLeft: 6 }}>✓</span>}
           <div style={{ fontSize: 12.5, color: "#abb2bf", lineHeight: 1.6, marginTop: 4 }}>{feedback}</div>
         </div>
       )}
@@ -1157,34 +1069,15 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
 
       {verdict === "PARTIAL" && probe && (
         <div style={{ marginTop: 8, padding: "10px 14px", borderRadius: 6, background: "#e5c07b08", border: "1px solid #e5c07b22", borderLeft: "3px solid #e5c07b44" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#e5c07b", fontWeight: 700, letterSpacing: "0.06em" }}>FOLLOW-UP</span>
-            <button onClick={speakProbe} style={{
-              background: probeSpeaking ? "#e5c07b18" : "#21252b",
-              border: "1px solid " + (probeSpeaking ? "#e5c07b" : "#3e4451"),
-              borderRadius: 4, color: probeSpeaking ? "#e5c07b" : "#636d83",
-              cursor: "pointer", fontSize: 10, padding: "3px 6px",
-              fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
-              whiteSpace: "nowrap", marginLeft: "auto",
-            }}>{probeSpeaking ? "■" : "▶"}</button>
-          </div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "#e5c07b", fontWeight: 700, letterSpacing: "0.06em", marginBottom: 6 }}>FOLLOW-UP</div>
           <div style={{ fontSize: 13, color: "#d7dae0", lineHeight: 1.6, marginBottom: 8, fontStyle: "italic" }}>"{probe}"</div>
           <div style={{ display: "flex", gap: 6 }}>
             <input value={probeVal} onChange={(e) => setChecks(p => ({ ...p, ["answer_probe_" + id]: e.target.value }))} placeholder="Answer the follow-up..." style={{ ...sty, minHeight: undefined, flex: 1 }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {hasSR && (
-                <button onClick={toggleProbeVoice} style={{
-                  background: probeRecording ? "#e06c7522" : "#21252b", border: "1px solid " + (probeRecording ? "#e06c75" : "#3e4451"),
-                  borderRadius: 4, color: probeRecording ? "#e06c75" : "#636d83", cursor: "pointer", fontSize: 10, padding: "6px 8px",
-                  fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, whiteSpace: "nowrap",
-                }}>{probeRecording ? "■ STOP" : "● REC"}</button>
-              )}
-              <button onClick={() => defend(probeVal, probe)} disabled={assessing || !probeVal.trim()} style={{
-                background: "#e5c07b18", border: "1px solid #e5c07b44", borderRadius: 4, color: "#e5c07b",
-                cursor: "pointer", fontSize: 10, padding: "6px 8px", fontFamily: "'IBM Plex Mono', monospace",
-                fontWeight: 700, opacity: !probeVal.trim() ? 0.4 : 1, whiteSpace: "nowrap",
-              }}>{assessing ? "..." : "DEFEND"}</button>
-            </div>
+            <button onClick={() => defend(probeVal, probe)} disabled={assessing || !probeVal.trim()} style={{
+              background: "#e5c07b18", border: "1px solid #e5c07b44", borderRadius: 4, color: "#e5c07b",
+              cursor: "pointer", fontSize: 10, padding: "6px 8px", fontFamily: "'IBM Plex Mono', monospace",
+              fontWeight: 700, opacity: !probeVal.trim() ? 0.4 : 1, whiteSpace: "nowrap",
+            }}>{assessing ? "..." : "DEFEND"}</button>
           </div>
         </div>
       )}
@@ -1266,13 +1159,6 @@ function Collapsible({ title, children, defaultOpen = false, accent = "#61afef",
 }
 
 function InterviewDialog({ question, hint, context }) {
-  const [speaking, setSpeaking] = useState(false);
-  const speak = async () => {
-    if (speaking) { setSpeaking(false); return; }
-    setSpeaking(true);
-    await speakText(question);
-    setSpeaking(false);
-  };
   return (
     <div style={{
       background: "linear-gradient(135deg, #e06c7508, #c678dd08)",
@@ -1287,14 +1173,6 @@ function InterviewDialog({ question, hint, context }) {
           borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace",
           fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
         }}>FAANG INTERVIEW</span>
-        <button onClick={speak} style={{
-          background: speaking ? "#e06c7518" : "#21252b",
-          border: "1px solid " + (speaking ? "#e06c75" : "#3e4451"),
-          borderRadius: 4, color: speaking ? "#e06c75" : "#636d83",
-          cursor: "pointer", fontSize: 10, padding: "3px 6px",
-          fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
-          whiteSpace: "nowrap", marginLeft: "auto",
-        }}>{speaking ? "■" : "▶"}</button>
       </div>
       <p style={{
         color: "#d7dae0", fontSize: 14, lineHeight: 1.6, margin: 0,
