@@ -1082,7 +1082,7 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
         </div>
       )}
 
-      {modelAnswer && confirmed && (
+      {modelAnswer && (
         <div style={{ marginTop: 4 }}>
           <button onClick={() => setShowModel(!showModel)} style={{ background: "none", border: "none", cursor: "pointer", padding: "3px 0", display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: showModel ? "#56b6c2" : "#3e4451", fontWeight: 600, letterSpacing: "0.05em" }}>{showModel ? "HIDE" : "REVEAL"} MODEL ANSWER</span>
@@ -1610,8 +1610,8 @@ export default function Module01() {
               Why this exists
             </P>
             <P style={{ margin: 0 }}>
-              The WhatsAppFSMProject refactor proved that <strong style={{ color: "#d7dae0" }}>structural correctness ≠ performance</strong>. 
-              That version compiled cleanly, passed its tests, and ran identically to the monolith — because the tests measured 
+              The WhatsAppFSMProject refactor proved that <strong style={{ color: "#d7dae0" }}>structural correctness ≠ performance</strong>.
+              That version compiled cleanly, passed its tests, and ran identically to the monolith — because the tests measured
               wiring (method signatures, call counts, argument shapes), not behaviour. When the structure changed, the tests broke.
             </P>
           </div>
@@ -1953,8 +1953,8 @@ export default function Module01() {
               CRITICAL — LIVE PRODUCTION BUG
             </div>
             <P style={{ margin: 0 }}>
-              The trailing comma makes the value a <code style={{ color: "#e5c07b" }}>tuple</code>. 
-              <code style={{ color: "#c678dd" }}>State.ERROR.value</code> returns <code style={{ color: "#d19a66" }}>('Error',)</code>, not <code style={{ color: "#98c379" }}>'Error'</code>. 
+              The trailing comma makes the value a <code style={{ color: "#e5c07b" }}>tuple</code>.
+              <code style={{ color: "#c678dd" }}>State.ERROR.value</code> returns <code style={{ color: "#d19a66" }}>('Error',)</code>, not <code style={{ color: "#98c379" }}>'Error'</code>.
               Any customer whose session lands in <code style={{ color: "#e06c75" }}>State.ERROR</code> is <strong style={{ color: "#d7dae0" }}>permanently stuck</strong>.
             </P>
           </div>
