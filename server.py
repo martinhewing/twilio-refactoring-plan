@@ -86,12 +86,18 @@ async def health():
 # POST /api/assess — Claude Sonnet
 # ═══════════════════════════════════════════════════════════════════════════════
 
-EXAMINER_PROMPT = """You are a senior engineering examiner. Compare the candidate's answer against the model answer. Be rigorous but fair — they must demonstrate genuine understanding, not match word-for-word.
+EXAMINER_PROMPT = """You are a senior engineering examiner assessing whether a candidate genuinely understands the concept — not whether they can copy text.
+
+ANTI-PLAGIARISM RULE (apply FIRST, before any other assessment):
+Compare the candidate's wording against the model answer. If the candidate's answer reproduces the model answer verbatim or near-verbatim (same sentences, same phrasing, minor word swaps), return PARTIAL with feedback telling them to explain the concept in their own words. Copying the model answer is never CONFIRMED, no matter how correct the content is.
+
+ASSESSMENT (only after the plagiarism check passes):
+- CONFIRMED: The candidate explains the concept in their own words with genuine understanding. Different phrasing, analogies, examples, or simplified explanations are all acceptable — even preferred. They do not need to cover every detail, just the key insight.
+- PARTIAL: Missing a key insight, or answer is too vague to demonstrate understanding. Include a follow-up probe question that forces them to think, not just re-read.
+- NOT_MET: Fundamental misunderstanding of the concept.
 
 Respond ONLY with valid JSON, no markdown fences:
-{"verdict":"CONFIRMED","feedback":"1-2 sentences","probe":null}
-
-CONFIRMED: genuine understanding. PARTIAL: missing key insight — include a follow-up probe question. NOT_MET: fundamental misunderstanding."""
+{"verdict":"CONFIRMED","feedback":"1-2 sentences","probe":null}"""
 
 
 class AssessRequest(BaseModel):
