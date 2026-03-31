@@ -176,12 +176,12 @@ async def speak_text(req: SpeakRequest):
                     voice={"mode": "id", "id": req.voice_id or CARTESIA_VOICE_ID},
                     output_format={
                         "container": "mp3",
-                        "bit_rate": 128000,
+                        "encoding": "mp3",
                         "sample_rate": 44100,
+                        "bit_rate": 128000,
                     },
                 )
-                with open(tmp, "wb") as out:
-                    out.write(response["audio"])
+                await response.write_to_file(tmp)
                 audio_bytes = open(tmp, "rb").read()
             finally:
                 if os.path.exists(tmp):
