@@ -27,10 +27,12 @@ import json
 import os
 import subprocess
 import tempfile
+import time
+from collections import defaultdict
 
 import anthropic
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -67,6 +69,77 @@ app.add_middleware(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Rate limiting + daily budget cap
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Three layers of protection against bill abuse:
+#   1. Per-IP sliding window — blocks individual abusers
+#   2. Global daily budget — hard ceiling on total API calls per day
+#   3. Anthropic/Cartesia dashboard spend caps — ultimate safety net (set manually)
+
+# Configurable via .env — defaults are generous for normal use, tight against abuse
+RATE_LIMIT_ASSESS   = int(os.environ.get("RATE_LIMIT_ASSESS", "10"))     # per IP per minute
+RATE_LIMIT_SPEAK    = int(os.environ.get("RATE_LIMIT_SPEAK", "20"))      # per IP per minute
+RATE_LIMIT_TRANSCRIBE = int(os.environ.get("RATE_LIMIT_TRANSCRIBE", "15"))  # per IP per minute
+DAILY_BUDGET_ASSESS = int(os.environ.get("DAILY_BUDGET_ASSESS", "500"))  # total calls per day
+DAILY_BUDGET_VOICE  = int(os.environ.get("DAILY_BUDGET_VOICE", "1000"))  # speak + transcribe per day
+
+
+class RateLimiter:
+    """Sliding window rate limiter — per IP, per endpoint."""
+
+    def __init__(self):
+        self._windows: dict[str, list[float]] = defaultdict(list)
+
+    def check(self, key: str, limit: int, window_seconds: int = 60) -> bool:
+        """Returns True if the request is allowed, False if rate-limited."""
+        now = time.monotonic()
+        timestamps = self._windows[key]
+
+        # Evict expired entries
+        self._windows[key] = [t for t in timestamps if now - t < window_seconds]
+
+        if len(self._windows[key]) >= limit:
+            return False
+
+        self._windows[key].append(now)
+        return True
+
+
+class DailyBudget:
+    """Global daily call counter — resets at midnight UTC."""
+
+    def __init__(self):
+        self._counts: dict[str, int] = defaultdict(int)
+        self._day: str = ""
+
+    def check(self, bucket: str, limit: int) -> bool:
+        """Returns True if under budget, False if daily limit exhausted."""
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        if today != self._day:
+            self._counts.clear()
+            self._day = today
+
+        if self._counts[bucket] >= limit:
+            return False
+
+        self._counts[bucket] += 1
+        return True
+
+
+rate_limiter = RateLimiter()
+daily_budget = DailyBudget()
+
+
+def get_client_ip(request: Request) -> str:
+    """Extract client IP, respecting X-Forwarded-For from Nginx."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # GET /api/health
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -79,6 +152,10 @@ async def health():
         "port": 8394,
         "anthropic": bool(ANTHROPIC_API_KEY),
         "cartesia": bool(CARTESIA_API_KEY),
+        "daily_budget": {
+            "assess": f"{daily_budget._counts.get('assess', 0)}/{DAILY_BUDGET_ASSESS}",
+            "voice": f"{daily_budget._counts.get('voice', 0)}/{DAILY_BUDGET_VOICE}",
+        },
     }
 
 
@@ -107,11 +184,17 @@ class AssessRequest(BaseModel):
 
 
 @app.post("/api/assess")
-async def assess_answer(req: AssessRequest):
+async def assess_answer(req: AssessRequest, request: Request):
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
     if not req.answer.strip():
         raise HTTPException(status_code=422, detail="Answer is empty")
+
+    ip = get_client_ip(request)
+    if not rate_limiter.check(f"assess:{ip}", RATE_LIMIT_ASSESS):
+        raise HTTPException(status_code=429, detail="Too many requests — try again in a minute")
+    if not daily_budget.check("assess", DAILY_BUDGET_ASSESS):
+        raise HTTPException(status_code=429, detail="Daily assessment limit reached — resets at midnight UTC")
 
     try:
         message = claude.messages.create(
@@ -157,11 +240,17 @@ class SpeakRequest(BaseModel):
 
 
 @app.post("/api/speak")
-async def speak_text(req: SpeakRequest):
+async def speak_text(req: SpeakRequest, request: Request):
     if not CARTESIA_API_KEY:
         raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
     if not req.text.strip():
         raise HTTPException(status_code=422, detail="Text is empty")
+
+    ip = get_client_ip(request)
+    if not rate_limiter.check(f"speak:{ip}", RATE_LIMIT_SPEAK):
+        raise HTTPException(status_code=429, detail="Too many requests — try again in a minute")
+    if not daily_budget.check("voice", DAILY_BUDGET_VOICE):
+        raise HTTPException(status_code=429, detail="Daily voice limit reached — resets at midnight UTC")
 
     try:
         from cartesia import AsyncCartesia
@@ -218,9 +307,15 @@ def _to_wav(audio_bytes: bytes) -> bytes:
 
 
 @app.post("/api/transcribe")
-async def transcribe_audio(audio: UploadFile = File(...)):
+async def transcribe_audio(request: Request, audio: UploadFile = File(...)):
     if not CARTESIA_API_KEY:
         raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
+
+    ip = get_client_ip(request)
+    if not rate_limiter.check(f"transcribe:{ip}", RATE_LIMIT_TRANSCRIBE):
+        raise HTTPException(status_code=429, detail="Too many requests — try again in a minute")
+    if not daily_budget.check("voice", DAILY_BUDGET_VOICE):
+        raise HTTPException(status_code=429, detail="Daily voice limit reached — resets at midnight UTC")
 
     audio_bytes = await audio.read()
     if len(audio_bytes) < 1000:
