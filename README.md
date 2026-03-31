@@ -33,14 +33,23 @@ This worksheet enforces a different sequence: **Understand → Observe → Test*
 └──────────────┬──────────────────────────────────┘
                │ POST
 ┌──────────────▼──────────────────────────────────┐
-│              server.py — FastAPI                 │
-│                                                  │
-│   POST /api/assess     Claude Sonnet 4           │
-│   POST /api/speak      Cartesia Sonic TTS        │
-│   POST /api/transcribe Cartesia Ink STT          │
-│   GET  /api/health     Status check              │
+│         Nginx (DO VPS — 157.245.36.85)          │
+│         SSL termination + reverse proxy          │
+│                      │                           │
+│         ┌────────────▼──────────────────┐       │
+│         │   Uvicorn — port 8394         │       │
+│         │   server.py — FastAPI         │       │
+│         │                               │       │
+│         │   POST /api/assess            │       │
+│         │   POST /api/speak             │       │
+│         │   POST /api/transcribe        │       │
+│         │   GET  /api/health            │       │
+│         │   GET  /*  → static/          │       │
+│         └───────────────────────────────┘       │
 └─────────────────────────────────────────────────┘
 ```
+
+Uvicorn serves both the API routes and the pre-built React SPA from `static/`. No Node.js on the server.
 
 ---
 
@@ -115,10 +124,18 @@ The worksheet uses a label system from the [Complete Python TDD & OOP Guide](res
 
 ## Assessment system
 
-Every DEFEND button sends the candidate's answer and the model answer to Claude Sonnet via `/api/assess`. The examiner returns one of three verdicts:
+Every DEFEND button sends the candidate's answer and the model answer to Claude Sonnet via `/api/assess`. The examiner applies a two-stage evaluation:
 
-- **CONFIRMED** — genuine understanding demonstrated. Field locks green. Next section unlocks.
-- **PARTIAL** — missing a key insight. Feedback shown plus a follow-up probe question with its own DEFEND button. Up to 10 partial attempts before NOT_MET.
+### Stage 1 — Anti-plagiarism check
+
+The examiner compares the candidate's wording against the model answer. If the answer reproduces the model answer verbatim or near-verbatim (same sentences, same phrasing, minor word swaps), it is rejected as PARTIAL with feedback asking the candidate to explain in their own words. Copying the model answer is never CONFIRMED, no matter how correct the content is.
+
+### Stage 2 — Genuine understanding
+
+Only after the plagiarism check passes:
+
+- **CONFIRMED** — the candidate explains the concept in their own words with genuine understanding. Different phrasing, analogies, examples, or simplified explanations are all acceptable — even preferred. They do not need to cover every detail, just the key insight.
+- **PARTIAL** — missing a key insight, or answer is too vague to demonstrate understanding. Feedback shown plus a follow-up probe question with its own DEFEND button. Up to 10 partial attempts before NOT_MET.
 - **NOT_MET** — fundamental misunderstanding (only after 10 partials).
 
 The stage gating order is: Q1 → Q2 → Q3 → Q4 → Q5 → Q6 → Q7. Each gate field must reach CONFIRMED before the next section is visible.
@@ -148,8 +165,8 @@ Open [http://localhost:5173](http://localhost:5173)
 ### Backend
 
 ```bash
-pip install -r requirements.txt
-uvicorn server:app --reload --port 3001
+uv sync
+uv run uvicorn server:app --reload --port 3001
 ```
 
 Required environment variables (`.env`):
@@ -161,31 +178,62 @@ CARTESIA_MODEL=sonic-2
 CARTESIA_EXAMINER_VOICE_ID=79a125e8-cd45-4c13-8a67-188112f4dd22
 ```
 
-The frontend proxies `/api/*` to the backend. In Vite, configure `vite.config.js`:
-
-```js
-export default {
-  server: {
-    proxy: {
-      '/api': 'http://localhost:3001'
-    }
-  }
-}
-```
+The frontend proxies `/api/*` to the backend via `vite.config.js`.
 
 ---
 
-## Deploy
+## Production deployment
 
-Pushes to `main` trigger the GitHub Actions workflow which builds and deploys to GitHub Pages.
+### Infrastructure
+
+| Component | Specification |
+|---|---|
+| VPS | Digital Ocean Droplet — `157.245.36.85` |
+| Port | `8394` |
+| Reverse proxy | Nginx (SSL termination via certbot) |
+| Process manager | systemd (`refactoring-factory.service`) |
+| Domain | `twilio-refactoring-plan.connectaiml.com` |
+
+Part of the [Factory Hub](https://github.com/martinhewing) — six instances on one VPS:
+
+| Port | Instance |
+|------|----------|
+| 8391 | ConnectionSphere Factory (system design) |
+| 8392 | SpanishTutor Factory |
+| 8393 | OOD Factory |
+| 8394 | **Refactoring Factory** |
+| 8395 | Competitive Programming Factory |
+| 8396 | Debugging Factory |
+
+### Deploy
+
+The frontend is built locally and committed as `static/`. Pushes to `main` trigger the GitHub Actions workflow which SSHs into the VPS, pulls the latest code, syncs Python dependencies, and restarts the service.
 
 ```bash
+# Build frontend locally
+npm run build
+
+# Commit and push
 git add -A
 git commit -m "your change"
 git push origin main
 ```
 
-In production, proxy `/api/*` from your frontend host to the backend server.
+No Node.js is installed on the VPS. The deploy workflow runs `git pull` → `uv sync` → `systemctl restart`.
+
+### Manual deploy
+
+```bash
+ssh root@157.245.36.85 "
+  export PATH=\$HOME/.local/bin:\$PATH
+  cd /app/refactoring-factory
+  git pull origin main
+  uv sync --no-dev
+  systemctl restart refactoring-factory
+  sleep 3
+  curl -s http://localhost:8394/api/health
+"
+```
 
 ---
 
@@ -195,14 +243,22 @@ In production, proxy `/api/*` from your frontend host to the backend server.
 twilio-refactoring-plan/
 ├── src/
 │   └── App.jsx              # Entire worksheet — data, components, and layout
-├── server.py                # FastAPI backend (assess, speak, transcribe)
-├── requirements.txt         # Python dependencies (anthropic, cartesia, fastapi)
-├── package.json             # Node dependencies (react, vite)
-├── vite.config.js           # Vite dev server + API proxy
+├── static/                  # Vite build output (committed, served by Uvicorn)
+│   ├── index.html
+│   └── assets/
+├── server.py                # FastAPI backend (assess, speak, transcribe, static serving)
+├── pyproject.toml           # Python dependencies (uv)
+├── package.json             # Node dependencies (react, vite — dev only)
+├── vite.config.js           # Vite dev server + build config
 ├── .env                     # API keys (not committed)
+├── .env.example             # Template for .env
+├── deploy/
+│   ├── refactoring-factory.service   # systemd unit
+│   ├── nginx-refactoring-factory     # Nginx site config
+│   └── provision-refactoring.sh      # One-time VPS instance setup
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml       # GitHub Pages deployment
+│       └── deploy.yml       # VPS deployment on push to main
 └── README.md
 ```
 
