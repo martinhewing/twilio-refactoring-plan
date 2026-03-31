@@ -1,18 +1,23 @@
 """
-server.py — Worksheet backend
+server.py — Refactoring Factory backend
 
-Powers the Module 01 JSX worksheet at twilio-refactoring-plan.connectaiml.com.
+Powers the Module 01 worksheet at twilio-refactoring-plan.connectaiml.com.
 
-Three API routes:
+Four API routes:
   POST /api/assess        → Claude Sonnet (answer assessment)
   POST /api/speak         → Cartesia Sonic (examiner TTS)
   POST /api/transcribe    → Cartesia Ink (voice-to-text)
+  GET  /api/health        → Status check
 
-Run locally:
-  pip install -r requirements.txt
-  uvicorn server:app --reload --port 3001
+In production, Uvicorn serves both the API and the Vite-built static frontend.
+In development, Vite's dev server proxies /api/* to localhost:3001.
 
-In production, proxy /api/* from your frontend host to this server.
+Production:
+  uv run uvicorn server:app --host 127.0.0.1 --port 8394
+
+Development:
+  uv run uvicorn server:app --reload --port 3001
+  npm run dev   # Vite on :5173, proxies /api to :3001
 """
 
 from __future__ import annotations
@@ -27,7 +32,8 @@ import anthropic
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 load_dotenv()
@@ -46,24 +52,31 @@ claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Module 01 Worksheet API")
+app = FastAPI(title="Refactoring Factory — Worksheet API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",       # Vite dev server
-        "http://localhost:3000",       # CRA dev server
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:3000",  # CRA dev server
         "https://twilio-refactoring-plan.connectaiml.com",
     ],
-    allow_methods=["POST"],
+    allow_methods=["POST", "GET"],
     allow_headers=["Content-Type"],
 )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GET /api/health
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 @app.get("/api/health")
 async def health():
     return {
         "status": "ok",
+        "instance": "refactoring-factory",
+        "port": 8394,
         "anthropic": bool(ANTHROPIC_API_KEY),
         "cartesia": bool(CARTESIA_API_KEY),
     }
@@ -157,22 +170,19 @@ async def speak_text(req: SpeakRequest):
                     voice={"mode": "id", "id": req.voice_id or CARTESIA_VOICE_ID},
                     output_format={
                         "container": "mp3",
-                        "encoding": "mp3",
-                        "sample_rate": 44100,
                         "bit_rate": 128000,
+                        "sample_rate": 44100,
                     },
                 )
-                await response.write_to_file(tmp)
-                audio = open(tmp, "rb").read()
+                with open(tmp, "wb") as out:
+                    out.write(response["audio"])
+                audio_bytes = open(tmp, "rb").read()
             finally:
                 if os.path.exists(tmp):
                     os.unlink(tmp)
 
-        return Response(
-            content=audio,
-            media_type="audio/mpeg",
-            headers={"Content-Disposition": "inline"},
-        )
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Cartesia TTS error: {e}")
 
@@ -183,7 +193,7 @@ async def speak_text(req: SpeakRequest):
 
 
 def _to_wav(audio_bytes: bytes) -> bytes:
-    """Convert browser audio (WebM) to 16kHz mono WAV via ffmpeg."""
+    """Convert browser audio (webm/ogg) to 16kHz mono WAV via ffmpeg."""
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
         f.write(audio_bytes)
         in_path = f.name
@@ -242,3 +252,30 @@ async def transcribe_audio(audio: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Cartesia STT error: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Static file serving — Vite build output
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# In production, `npm run build` outputs to static/.
+# Uvicorn serves both the API routes above AND the built React SPA below.
+# In development, Vite's dev server handles static files — this block is skipped.
+
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+if os.path.isdir(STATIC_DIR):
+    # Mount hashed assets (JS, CSS, images) — these have cache-busting filenames
+    assets_dir = os.path.join(STATIC_DIR, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Catch-all: serve index.html for any non-API, non-asset route."""
+        # Try to serve the exact file first (favicon.ico, etc.)
+        file_path = os.path.join(STATIC_DIR, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        # Otherwise serve index.html for client-side routing
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))

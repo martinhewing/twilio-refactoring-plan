@@ -1,39 +1,45 @@
-name: Deploy to GitHub Pages
+name: Deploy to Production
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
         with:
-          node-version: 20
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            cd /app/refactoring-factory
+            git pull origin main
 
-      - run: npm install
-      - run: npm run build
+            # Rebuild frontend
+            npm ci
+            npm run build
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+            # Sync Python deps
+            uv sync --frozen --no-dev
 
-      - id: deployment
-        uses: actions/deploy-pages@v4
+            # Restart service
+            sudo systemctl restart refactoring-factory
+
+            # Health check
+            sleep 3
+            curl -f http://localhost:8394/api/health || echo "⚠ HEALTH CHECK FAILED"
+
+      - name: Smoke test production
+        run: |
+          sleep 5
+          curl -f https://twilio-refactoring-plan.connectaiml.com/api/health
+        continue-on-error: true
