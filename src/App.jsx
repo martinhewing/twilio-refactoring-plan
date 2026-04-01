@@ -1019,38 +1019,70 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
     }
   };
 
-  const defend = async (ans, q) => {
+  const defend = async (ans, q, isProbe = false) => {
     if (!ans?.trim() || !modelAnswer) return;
     setAssessing(true);
     try {
-      const r = await assessAnswer(q || question || placeholder || id, ans, modelAnswer);
+      // For probe: send probe question as question, and give examiner
+      // the original Q + model answer as context so it can evaluate
+      // whether the probe answer demonstrates understanding
+      const assessQuestion = q || question || placeholder || id;
+      const assessReference = isProbe
+        ? `The candidate was asked this follow-up probe after a PARTIAL on the original question.\n\nORIGINAL QUESTION:\n${question || placeholder || id}\n\nMODEL ANSWER:\n${modelAnswer}\n\nPROBE QUESTION:\n${q}\n\nJudge whether the candidate's probe answer demonstrates understanding of the concept in the model answer.`
+        : modelAnswer;
+
+      const r = await assessAnswer(assessQuestion, ans, assessReference);
       const partialKey = "partial_count_" + id;
       const currentCount = checks[partialKey] || 0;
 
-      if (r.verdict === "NOT_MET" && currentCount < 10) {
-        // Override NOT_MET to PARTIAL — give 10 partial attempts before failing
-        setChecks(p => ({ ...p,
-          ["verdict_" + id]: "PARTIAL",
-          ["feedback_" + id]: r.feedback || "",
-          ["probe_" + id]: r.probe || "",
-          [partialKey]: currentCount + 1,
-        }));
-      } else if (r.verdict === "PARTIAL") {
-        setChecks(p => ({ ...p,
-          ["verdict_" + id]: r.verdict,
-          ["feedback_" + id]: r.feedback || "",
-          ["probe_" + id]: r.probe || "",
-          [partialKey]: currentCount + 1,
-        }));
+      if (isProbe) {
+        // Probe confirmed → promote the whole field
+        if (r.verdict === "CONFIRMED") {
+          setChecks(p => ({ ...p,
+            ["verdict_" + id]: "CONFIRMED",
+            ["feedback_" + id]: r.feedback || "",
+          }));
+        } else {
+          // Probe partial/not_met → show probe feedback, keep probe section visible
+          setChecks(p => ({ ...p,
+            ["probe_feedback_" + id]: r.feedback || "",
+            // Replace probe only if examiner gave a new one, otherwise keep current
+            ["probe_" + id]: r.probe || p["probe_" + id] || "",
+            [partialKey]: currentCount + 1,
+          }));
+        }
       } else {
-        setChecks(p => ({ ...p,
-          ["verdict_" + id]: r.verdict,
-          ["feedback_" + id]: r.feedback || "",
-          ["probe_" + id]: r.probe || "",
-        }));
+        // Original defend logic (unchanged)
+        if (r.verdict === "NOT_MET" && currentCount < 10) {
+          setChecks(p => ({ ...p,
+            ["verdict_" + id]: "PARTIAL",
+            ["feedback_" + id]: r.feedback || "",
+            ["probe_" + id]: r.probe || "",
+            ["probe_feedback_" + id]: "",
+            [partialKey]: currentCount + 1,
+          }));
+        } else if (r.verdict === "PARTIAL") {
+          setChecks(p => ({ ...p,
+            ["verdict_" + id]: r.verdict,
+            ["feedback_" + id]: r.feedback || "",
+            ["probe_" + id]: r.probe || "",
+            ["probe_feedback_" + id]: "",
+            [partialKey]: currentCount + 1,
+          }));
+        } else {
+          setChecks(p => ({ ...p,
+            ["verdict_" + id]: r.verdict,
+            ["feedback_" + id]: r.feedback || "",
+            ["probe_" + id]: r.probe || "",
+          }));
+        }
       }
     } catch (e) {
-      setChecks(p => ({ ...p, ["verdict_" + id]: "ERROR", ["feedback_" + id]: e.message }));
+      if (isProbe) {
+        setChecks(p => ({ ...p, ["probe_feedback_" + id]: "Error: " + e.message }));
+      } else {
+        setChecks(p => ({ ...p, ["verdict_" + id]: "ERROR", ["feedback_" + id]: e.message }));
+      }
     }
     setAssessing(false);
   };
@@ -1169,6 +1201,11 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
             }}>{probeSpeaking ? "■" : "▶"}</button>
           </div>
           <div style={{ fontSize: 13, color: "#d7dae0", lineHeight: 1.6, marginBottom: 8, fontStyle: "italic" }}>"{probe}"</div>
+          {checks["probe_feedback_" + id] && (
+            <div style={{ fontSize: 12, color: "#e5c07b", lineHeight: 1.5, marginBottom: 8, padding: "6px 10px", background: "#e5c07b08", border: "1px solid #e5c07b22", borderRadius: 4 }}>
+              {checks["probe_feedback_" + id]}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 6 }}>
             <input value={probeVal} onChange={(e) => setChecks(p => ({ ...p, ["answer_probe_" + id]: e.target.value }))} placeholder="Answer the follow-up..." style={{ ...sty, minHeight: undefined, flex: 1 }} />
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1179,7 +1216,7 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
                   fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, whiteSpace: "nowrap",
                 }}>{probeRecording ? "■ STOP" : "● REC"}</button>
               )}
-              <button onClick={() => defend(probeVal, probe)} disabled={assessing || !probeVal.trim()} style={{
+              <button onClick={() => defend(probeVal, probe, true)} disabled={assessing || !probeVal.trim()} style={{
                 background: "#e5c07b18", border: "1px solid #e5c07b44", borderRadius: 4, color: "#e5c07b",
                 cursor: "pointer", fontSize: 10, padding: "6px 8px", fontFamily: "'IBM Plex Mono', monospace",
                 fontWeight: 700, opacity: !probeVal.trim() ? 0.4 : 1, whiteSpace: "nowrap",
