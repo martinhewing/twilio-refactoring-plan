@@ -1043,6 +1043,7 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
             ["probe_feedback_" + id]: r.feedback || "Try to be more specific about the underlying concept.",
             // If examiner gave a new probe, use it (evolving question); otherwise keep current
             ["probe_" + id]: newProbe || p["probe_" + id] || probe,
+            [partialKey]: (p[partialKey] || 0) + 1,
             // If probe evolved to a new question, clear old answer; otherwise keep it
             ...(newProbe ? { ["answer_probe_" + id]: "" } : {}),
           }));
