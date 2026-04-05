@@ -1019,11 +1019,13 @@ function AnswerField({ id, placeholder, checks, setChecks, multiline = false, qu
     setAssessing(true);
     try {
       const assessQuestion = q || question || placeholder || id;
+      // Guard against oversized input from long voice transcriptions
+      const trimmedAns = ans.length > 3000 ? ans.slice(0, 3000) + "..." : ans;
       const assessReference = isProbe
         ? `The candidate was asked this follow-up probe after a PARTIAL on the original question.\n\nORIGINAL QUESTION:\n${question || placeholder || id}\n\nMODEL ANSWER:\n${modelAnswer}\n\nPROBE QUESTION:\n${q}\n\nJudge whether the candidate's probe answer demonstrates understanding of the concept in the model answer.`
         : modelAnswer;
 
-      const r = await assessAnswer(assessQuestion, ans, assessReference);
+      const r = await assessAnswer(assessQuestion, trimmedAns, assessReference);
       const partialKey = "partial_count_" + id;
       const currentCount = checks[partialKey] || 0;
 
