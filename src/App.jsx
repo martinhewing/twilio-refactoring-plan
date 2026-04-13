@@ -658,11 +658,6 @@ const GATE_FIELDS = {
   q4: "q4_defend", q5: "q5_label", q6: "q6_defend", q7: "q7_defend",
 };
 function isSectionUnlocked(sid, checks) {
-  const idx = GATE_ORDER.indexOf(sid);
-  if (idx <= 0) return true;
-  for (let i = 0; i < idx; i++) {
-    if (checks["verdict_" + GATE_FIELDS[GATE_ORDER[i]]] !== "CONFIRMED") return false;
-  }
   return true;
 }
 
@@ -1557,15 +1552,26 @@ export default function Module01() {
   const [checks, setChecks] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : {};
+      if (!saved) return {};
+      const parsed = JSON.parse(saved);
+      return parsed && typeof parsed === "object" ? parsed : {};
     } catch (e) {
+      // Back up the corrupt blob so it can be recovered manually instead of lost
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) localStorage.setItem(STORAGE_KEY + "_corrupt_" + Date.now(), raw);
+      } catch {}
       return {};
     }
   });
   const sectionRefs = useRef({});
   const mainRef = useRef(null);
 
+  const didMount = useRef(false);
+
   useEffect(() => {
+    // Skip the first save — if load failed and state is {}, we must NOT clobber storage
+    if (!didMount.current) { didMount.current = true; return; }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(checks));
     } catch (e) {

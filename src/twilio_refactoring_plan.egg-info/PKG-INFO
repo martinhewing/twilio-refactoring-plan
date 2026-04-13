@@ -9,3 +9,5 @@ Requires-Dist: anthropic>=0.40.0
 Requires-Dist: cartesia[websockets]>=1.0.0
 Requires-Dist: python-dotenv>=1.0.0
 Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: redis>=7.4.0
+Requires-Dist: pytest>=9.0.3

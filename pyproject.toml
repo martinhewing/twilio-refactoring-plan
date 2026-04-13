@@ -11,6 +11,8 @@ dependencies = [
     "cartesia[websockets]>=1.0.0",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.9",
+    "redis>=7.4.0",
+    "pytest>=9.0.3",
 ]
 
 [build-system]
