@@ -5,22 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7cd0d1dc-f520-450d-9329-83daf165441a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/toys/category_mismatch_toy.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/toys/decorator_layer_violation_toy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/twilio-refactoring-plan.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/twilio-refactoring-plan.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/experiments/01_hydration.py" beforeDir="false" afterPath="$PROJECT_DIR$/toys/01_hydration.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/experiments/02_enum_vs_string.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/experiments/03_error_tuple_bug.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/experiments/04_round_trip.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/experiments/05_typeddict_vs_object.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/experiments/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/toys/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/experiments/_template.py" beforeDir="false" afterPath="$PROJECT_DIR$/toys/_template.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/App.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/twilio_refactoring_plan.egg-info/PKG-INFO" beforeDir="false" afterPath="$PROJECT_DIR$/src/twilio_refactoring_plan.egg-info/PKG-INFO" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/twilio_refactoring_plan.egg-info/requires.txt" beforeDir="false" afterPath="$PROJECT_DIR$/src/twilio_refactoring_plan.egg-info/requires.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/uv.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/toys/ai_processing_lockout_toy.py" beforeDir="false" afterPath="$PROJECT_DIR$/toys/ai_processing_lockout_toy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/toys/decorator_layer_violation_toy.py" beforeDir="false" afterPath="$PROJECT_DIR$/toys/decorator_layer_violation_toy.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,7 +16,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="2306" />
+    <option name="cachedIndexableFilesCount" value="60" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="FileTemplateManagerImpl">
@@ -75,6 +63,7 @@
     &quot;Python tests.Python tests in decorator_layer_violation_toy.py.executor&quot;: &quot;Debug&quot;,
     &quot;Python tests.pytest for toys.decorator_layer_violation_toy.test_FM1_kwarg_breaks_args_scan.executor&quot;: &quot;Debug&quot;,
     &quot;Python.decorator_layer_violation_toy.executor&quot;: &quot;Debug&quot;,
+    &quot;Python.state_error_tuple_bug_toy.executor&quot;: &quot;Debug&quot;,
     &quot;Python.twilio-refactoring-plan · toy runner.executor&quot;: &quot;Debug&quot;,
     &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
@@ -82,6 +71,7 @@
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
     &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
     &quot;last_opened_file_path&quot;: &quot;/Users/martinhewing/PycharmProjects/twilio-refactoring-plan&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
@@ -93,7 +83,7 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
-  <component name="RunManager" selected="Python.decorator_layer_violation_toy">
+  <component name="RunManager" selected="Python.state_error_tuple_bug_toy">
     <configuration name="decorator_layer_violation_toy" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="twilio-refactoring-plan" />
       <option name="ENV_FILES" value="" />
@@ -107,9 +97,35 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="RUN_TOOL" value="" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/toys/decorator_layer_violation_toy.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="state_error_tuple_bug_toy" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="twilio-refactoring-plan" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/toys" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/toys/state_error_tuple_bug_toy.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -132,6 +148,7 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <EXTENSION ID="net.ashald.envfile">
         <option name="IS_ENABLED" value="false" />
@@ -163,6 +180,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="RUN_TOOL" value="" />
       <option name="_new_additionalArguments" value="&quot;&quot;" />
@@ -180,6 +198,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <EXTENSION ID="net.ashald.envfile">
         <option name="IS_ENABLED" value="false" />
@@ -201,12 +220,14 @@
     </configuration>
     <list>
       <item itemvalue="Python.twilio-refactoring-plan · toy runner" />
+      <item itemvalue="Python.state_error_tuple_bug_toy" />
       <item itemvalue="Python.decorator_layer_violation_toy" />
       <item itemvalue="Python tests.Python tests in decorator_layer_violation_toy.py" />
       <item itemvalue="Python tests.pytest for toys.decorator_layer_violation_toy.test_FM1_kwarg_breaks_args_scan" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.state_error_tuple_bug_toy" />
         <item itemvalue="Python.decorator_layer_violation_toy" />
         <item itemvalue="Python tests.pytest for toys.decorator_layer_violation_toy.test_FM1_kwarg_breaks_args_scan" />
         <item itemvalue="Python tests.Python tests in decorator_layer_violation_toy.py" />
@@ -216,8 +237,8 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-PY-253.32098.74" />
-        <option value="bundled-python-sdk-1cd77e80b48f-6d6dccd035ac-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.32098.74" />
+        <option value="bundled-js-predefined-d6986cc7102b-31caf2ab9e3c-JavaScript-PY-261.23567.174" />
+        <option value="bundled-python-sdk-024ed6589d45-c2ffad84badb-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.23567.174" />
       </set>
     </attachedChunks>
   </component>
@@ -233,7 +254,15 @@
       <workItem from="1775811536134" duration="3373000" />
       <workItem from="1775857771419" duration="541000" />
       <workItem from="1775894903357" duration="29012000" />
-      <workItem from="1776069756533" duration="8150000" />
+      <workItem from="1776069756533" duration="20707000" />
+      <workItem from="1776112520680" duration="14288000" />
+      <workItem from="1776271131116" duration="67000" />
+      <workItem from="1776271882145" duration="8059000" />
+      <workItem from="1776343605095" duration="3024000" />
+      <workItem from="1776421278487" duration="4812000" />
+      <workItem from="1776709109084" duration="11373000" />
+      <workItem from="1777812376767" duration="597000" />
+      <workItem from="1777884485332" duration="4460000" />
     </task>
     <servers />
   </component>
@@ -244,12 +273,14 @@
     <breakpoint-manager>
       <breakpoints>
         <breakpoint type="python-exception">
-          <properties notifyOnTerminate="true" exception="StopIteration">
+          <properties notifyOnlyOnFirst="true" notifyOnTerminate="true" ignoreLibraries="true" exception="StopIteration">
+            <option name="ignoreLibraries" value="true" />
             <option name="notifyOnTerminate" value="true" />
+            <option name="notifyOnlyOnFirst" value="true" />
           </properties>
           <option name="timeStamp" value="9" />
         </breakpoint>
-        <breakpoint enabled="true" type="python-exception">
+        <breakpoint type="python-exception">
           <properties notifyOnlyOnFirst="true" notifyOnTerminate="true" ignoreLibraries="true" exception="RuntimeError">
             <option name="ignoreLibraries" value="true" />
             <option name="notifyOnTerminate" value="true" />
@@ -257,13 +288,28 @@
           </properties>
           <option name="timeStamp" value="11" />
         </breakpoint>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="ValueError">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+          <option name="timeStamp" value="18" />
+        </breakpoint>
       </breakpoints>
     </breakpoint-manager>
+    <watches-manager>
+      <configuration name="PythonConfigurationType">
+        <watch expression="type(State.ERROR.value)" language="Python" />
+        <watch expression="type(State.SALES.value)" language="Python" />
+        <watch expression="type(State.NEW_INQUIRY.value)" language="Python" />
+        <watch expression="transition_to(State.ERROR)" language="Python" />
+      </configuration>
+    </watches-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/twilio_refactoring_plan$decorator_layer_violation_toy.coverage" NAME="decorator_layer_violation_toy Coverage Results" MODIFIED="1776078220478" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/toys" />
     <SUITE FILE_PATH="coverage/twilio_refactoring_plan$twilio_refactoring_plan___toy_runner.coverage" NAME="twilio-refactoring-plan · toy runner Coverage Results" MODIFIED="1776008262255" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$FileDir$" />
-    <SUITE FILE_PATH="coverage/twilio_refactoring_plan$.coverage" NAME=" Coverage Results" MODIFIED="1776005845535" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/twilio_refactoring_plan$pytest_for_toys_decorator_layer_violation_toy_test_FM1_kwarg_breaks_args_scan.coverage" NAME="pytest for toys.decorator_layer_violation_toy.test_FM1_kwarg_breaks_args_scan Coverage Results" MODIFIED="1776008209526" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/twilio_refactoring_plan$state_error_tuple_bug_toy.coverage" NAME="state_error_tuple_bug_toy Coverage Results" MODIFIED="1776709220334" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/toys" />
+    <SUITE FILE_PATH="coverage/twilio_refactoring_plan$decorator_layer_violation_toy.coverage" NAME="decorator_layer_violation_toy Coverage Results" MODIFIED="1776158524620" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/toys" />
+    <SUITE FILE_PATH="coverage/twilio_refactoring_plan$.coverage" NAME=" Coverage Results" MODIFIED="1776005845535" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
