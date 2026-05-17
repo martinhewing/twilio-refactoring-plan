@@ -1103,7 +1103,7 @@ function TestCaseData({ cases, title }) {
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════
 
-export default function Module01() {
+export default function Module01({ onHome }) {
   const [activeSection, setActiveSection] = useState("orientation");
   const STORAGE_KEY = "module01_checks";
 
@@ -1220,6 +1220,14 @@ export default function Module01() {
 
         <div style={{ padding: "14px 18px", borderTop: `1px solid ${T.border_soft}` }}>
           <div style={{ fontFamily: FONT_MONO, fontSize: 10, color: T.ink_3, marginBottom: 8, letterSpacing: "0.04em" }}>150 min budget</div>
+          {onHome && (
+            <button onClick={onHome} style={{
+              width: "100%", padding: "6px 0", background: "transparent",
+              border: `1px solid ${T.border_med}`, borderRadius: 3, color: T.ink_3,
+              cursor: "pointer", fontSize: 10, fontFamily: FONT_MONO, fontWeight: 600,
+              letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6,
+            }}>← All worksheets</button>
+          )}
           <button onClick={resetProgress}
             onMouseEnter={(e) => { e.currentTarget.style.color = T.acc_ink; e.currentTarget.style.borderColor = T.acc_border; e.currentTarget.style.background = T.acc_fill; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = T.ink_3; e.currentTarget.style.borderColor = T.border_med; e.currentTarget.style.background = T.paper; }}
