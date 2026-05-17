@@ -33,7 +33,7 @@ Each module's progress is isolated:
 - Module 01 → `localStorage["module01_checks"]`
 - Module 02 → `localStorage["module02_checks"]`
 
-A candidate doing Module 02 will not see Module 01 verdicts in their counter, and vice versa. **Your existing Module 01 progress data is preserved** — the key name hasn't changed.
+A candidate doing Module 02 will not see Module 01 verdicts in their counter, and vice versa. **Your existing Module 01 progress data is preserved.** — the key name hasn't changed.
 
 ---
 
