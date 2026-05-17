@@ -25,7 +25,7 @@ Hash-based routing means **no nginx changes, no `react-router-dom` dependency, n
 
 ### Backend
 
-**No changes.** Module 02 reuses the exact same `/api/assess`, `/api/speak`, `/api/transcribe` endpoints that already serve Module 01. The `EXAMINER_PROMPT` in `server.py` is fully generic — it operates on whatever `model_answer` arrives in the request, so Module 02's 21 oral defenses assess correctly without any backend modifications.
+**No changes.** Module 02 reuses the exact same `/api/assess`, `/api/speak`, `/api/transcribe` endpoints that already serve Module 01. The `EXAMINER_PROMPT` in `server.py` is fully generic — it operates on whatever `model_answer` arrives in the request, so Module 02's 21 oral defenses assess correctly without any backend mods.
 
 ### Storage
 
